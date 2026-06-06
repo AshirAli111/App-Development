@@ -7,7 +7,7 @@ Feature
 High
 
 ## Status
-To Do
+Done
 
 ## Summary
 Design and implement the MongoDB database layer for TutorGo using a Dart backend. This includes defining all collection schemas, establishing the MongoDB connection, and structuring data models to support authentication, messaging, scheduling, AI chat history, notifications, and mock payments.
