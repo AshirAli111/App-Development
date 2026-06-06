@@ -8,6 +8,8 @@
 
 3. **Always commit changes right away.** After completing any task, stage and commit the changes immediately. Do not let work sit uncommitted.
 
+5. **Always update `docs/backend-api-specification.yaml`** whenever a backend API endpoint is added, updated, or deleted. This file is an OpenAPI 3.0 spec that must stay in sync with the actual backend routes. It is used in Swagger Editor for API documentation and testing.
+
 4. **Every prompt must start with a ticket.** Before implementing any feature or task:
    - Create a `ticketXX.md` file under `docs/jira/` (e.g., `ticket01.md`, `ticket02.md`, etc.)
    - **Optimize the prompt first** — ask relevant clarifying questions to the user before writing the ticket. The goal is to make the ticket detailed enough for implementation without ambiguity.

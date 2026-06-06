@@ -1,0 +1,1299 @@
+openapi: 3.0.3
+info:
+  title: TutorGo Backend API
+  description: |
+    REST API for the TutorGo tutoring platform.
+
+    **Authentication:** All `/api/*` routes require a Bearer JWT token in the Authorization header.
+    Public routes (`/auth/*`) do not require authentication.
+
+    **Currency:** All monetary values are in Pakistani Rupees (PKR) as integers.
+  version: 1.0.0
+  contact:
+    name: TutorGo Team
+
+servers:
+  - url: http://localhost:8080
+    description: Local Development
+
+tags:
+  - name: Health
+    description: Server health check
+  - name: Auth
+    description: Authentication (public - no token required)
+  - name: Users
+    description: User profile management
+  - name: Sessions
+    description: Recurring tutoring sessions
+  - name: Session Instances
+    description: Individual session occurrences
+  - name: Chats
+    description: Messaging between students and tutors
+  - name: AI Conversations
+    description: AI tutor chat history
+  - name: Notifications
+    description: User notifications with scheduler
+  - name: Payments
+    description: Mock payment tracking in PKR
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns server status and timestamp
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2026-06-06T11:19:15.199873"
+
+  # ─────────────────────────────────────────────
+  # AUTH
+  # ─────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Creates a new student or tutor account. Returns JWT tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with email and password
+      description: Authenticates user and returns JWT tokens.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Issues a new access token using a valid refresh token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+                  description: The refresh token from login/register
+      responses:
+        '200':
+          description: New tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
+  # USERS
+  # ─────────────────────────────────────────────
+  /api/users/me:
+    get:
+      tags: [Users]
+      summary: Get current user profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Users]
+      summary: Update current user profile
+      description: |
+        Updates user profile fields. Cannot update email, password, or role via this endpoint.
+        For student profiles, update `studentProfile` object.
+        For tutor profiles, update `tutorProfile` object.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users/tutors:
+    get:
+      tags: [Users]
+      summary: List approved tutors
+      description: Returns paginated list of approved tutors. Optionally filter by subject.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: subject
+          in: query
+          schema:
+            type: string
+          description: Filter by subject (e.g., "Mathematics")
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of tutors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tutors:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/users/tutors/{id}:
+    get:
+      tags: [Users]
+      summary: Get tutor by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Tutor ObjectId
+      responses:
+        '200':
+          description: Tutor profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────
+  # SESSIONS
+  # ─────────────────────────────────────────────
+  /api/sessions/:
+    get:
+      tags: [Sessions]
+      summary: Get user's active sessions
+      description: Returns sessions based on user role (student sees their sessions, tutor sees theirs).
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Sessions]
+      summary: Create a recurring session
+      description: Creates a session and auto-generates instances for the next 4 weeks.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/sessions/{id}:
+    get:
+      tags: [Sessions]
+      summary: Get session by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Sessions]
+      summary: Update a session
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, paused, cancelled, completed]
+                notes:
+                  type: string
+                pricePerSessionPKR:
+                  type: integer
+      responses:
+        '200':
+          description: Updated session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+    delete:
+      tags: [Sessions]
+      summary: Cancel a session
+      description: Sets session status to cancelled and cancels all future instances.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Session cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/sessions/{id}/instances:
+    get:
+      tags: [Session Instances]
+      summary: Get session instances
+      description: Returns all instances (occurrences) of a recurring session.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: List of instances
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  instances:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SessionInstance'
+
+  # ─────────────────────────────────────────────
+  # CHATS
+  # ─────────────────────────────────────────────
+  /api/chats/:
+    get:
+      tags: [Chats]
+      summary: Get user's chats
+      description: Returns all chat rooms for the authenticated user, sorted by most recent.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of chats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chats:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Chat'
+
+  /api/chats/{id}/messages:
+    get:
+      tags: [Chats]
+      summary: Get messages in a chat
+      description: Returns paginated messages in chronological order (newest first).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/Page'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Message'
+                  page:
+                    type: integer
+                  limit:
+                    type: integer
+    post:
+      tags: [Chats]
+      summary: Send a message
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /api/chats/{id}/read:
+    put:
+      tags: [Chats]
+      summary: Mark chat as read
+      description: Marks all messages in this chat as seen and resets unread count.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # ─────────────────────────────────────────────
+  # AI CONVERSATIONS
+  # ─────────────────────────────────────────────
+  /api/ai/conversations:
+    get:
+      tags: [AI Conversations]
+      summary: List AI conversations
+      description: Returns all AI chat conversations for the authenticated user.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AiConversation'
+    post:
+      tags: [AI Conversations]
+      summary: Create a new AI conversation
+      description: Starts a new conversation with the AI tutor. Title auto-generated from first message.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                  description: The first message to start the conversation
+                  example: "Help me understand quadratic equations"
+      responses:
+        '201':
+          description: Conversation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiConversation'
+
+  /api/ai/conversations/{id}:
+    get:
+      tags: [AI Conversations]
+      summary: Get AI conversation by ID
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiConversation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [AI Conversations]
+      summary: Delete an AI conversation
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Conversation deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/ai/conversations/{id}/message:
+    post:
+      tags: [AI Conversations]
+      summary: Add message to AI conversation
+      description: Appends a message (user or AI response) to an existing conversation.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, isUser]
+              properties:
+                text:
+                  type: string
+                  description: Message content
+                isUser:
+                  type: boolean
+                  description: true if from user, false if AI response
+      responses:
+        '200':
+          description: Updated conversation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AiConversation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ─────────────────────────────────────────────
+  # NOTIFICATIONS
+  # ─────────────────────────────────────────────
+  /api/notifications/:
+    get:
+      tags: [Notifications]
+      summary: Get user notifications
+      description: Returns notifications that are scheduled for now or earlier.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: If true, only return unread notifications
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  notifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /api/notifications/{id}/read:
+    put:
+      tags: [Notifications]
+      summary: Mark notification as read
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/notifications/read-all:
+    put:
+      tags: [Notifications]
+      summary: Mark all notifications as read
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # ─────────────────────────────────────────────
+  # PAYMENTS
+  # ─────────────────────────────────────────────
+  /api/payments/:
+    get:
+      tags: [Payments]
+      summary: Get user payments
+      description: Returns payment records based on user role.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Page'
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payments:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payment'
+    post:
+      tags: [Payments]
+      summary: Create a mock payment
+      description: Records a payment transaction (mock - no real gateway).
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/payments/summary:
+    get:
+      tags: [Payments]
+      summary: Get payment summary
+      description: Returns total, pending, and completed amounts in PKR.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Payment summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalPKR:
+                    type: integer
+                    example: 15000
+                  pendingPKR:
+                    type: integer
+                    example: 3000
+                  completedPKR:
+                    type: integer
+                    example: 12000
+                  totalTransactions:
+                    type: integer
+                    example: 10
+
+  /api/payments/{id}/status:
+    put:
+      tags: [Payments]
+      summary: Update payment status
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, completed, refunded]
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+# ═════════════════════════════════════════════════
+# COMPONENTS
+# ═════════════════════════════════════════════════
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token from /auth/login or /auth/register
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: MongoDB ObjectId
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 20
+        minimum: 1
+        maximum: 100
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authorization token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    # ── Requests ──
+    RegisterRequest:
+      type: object
+      required: [email, password, fullName, role]
+      properties:
+        email:
+          type: string
+          format: email
+          example: student@tutorgo.com
+        password:
+          type: string
+          minLength: 6
+          example: pass123
+        fullName:
+          type: string
+          example: Ali Khan
+        role:
+          type: string
+          enum: [student, tutor]
+        phone:
+          type: string
+          example: "03001234567"
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: student@tutorgo.com
+        password:
+          type: string
+          example: pass123
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        profileImage:
+          type: string
+          description: Base64 encoded PNG image
+        studentProfile:
+          $ref: '#/components/schemas/StudentProfile'
+        tutorProfile:
+          $ref: '#/components/schemas/TutorProfile'
+
+    CreateSessionRequest:
+      type: object
+      required: [studentId, tutorId, subject, recurrence, pricePerSessionPKR]
+      properties:
+        studentId:
+          type: string
+          description: Student ObjectId
+        tutorId:
+          type: string
+          description: Tutor ObjectId
+        subject:
+          type: string
+          example: Mathematics
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+        pricePerSessionPKR:
+          type: integer
+          example: 1500
+        notes:
+          type: string
+
+    SendMessageRequest:
+      type: object
+      required: [text]
+      properties:
+        text:
+          type: string
+          example: "Hello, I need help with calculus"
+        type:
+          type: string
+          enum: [text, session_request, session_response]
+          default: text
+        sessionRequest:
+          $ref: '#/components/schemas/SessionRequestPayload'
+
+    CreatePaymentRequest:
+      type: object
+      required: [studentId, tutorId, amountPKR, method]
+      properties:
+        studentId:
+          type: string
+        tutorId:
+          type: string
+        sessionInstanceId:
+          type: string
+          nullable: true
+        amountPKR:
+          type: integer
+          example: 1500
+        method:
+          type: string
+          enum: [cash, bank_transfer, easypaisa, jazzcash]
+
+    # ── Responses ──
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token (expires in 1 hour)
+        refreshToken:
+          type: string
+          description: JWT refresh token (expires in 7 days)
+        user:
+          $ref: '#/components/schemas/User'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: Invalid email or password
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Operation successful
+
+    # ── Models ──
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "6a23e6d30c3773c719a34afa"
+        role:
+          type: string
+          enum: [student, tutor]
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        phone:
+          type: string
+          nullable: true
+        profileImage:
+          type: string
+          nullable: true
+          description: Base64 encoded PNG
+        isActive:
+          type: boolean
+        isVerified:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        studentProfile:
+          $ref: '#/components/schemas/StudentProfile'
+        tutorProfile:
+          $ref: '#/components/schemas/TutorProfile'
+
+    StudentProfile:
+      type: object
+      nullable: true
+      properties:
+        age:
+          type: integer
+          nullable: true
+        grade:
+          type: string
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        selectedCourses:
+          type: array
+          items:
+            type: string
+          example: ["Mathematics", "Science", "English"]
+        dailyGoalMinutes:
+          type: integer
+          default: 30
+
+    TutorProfile:
+      type: object
+      nullable: true
+      properties:
+        experienceYears:
+          type: integer
+          nullable: true
+        qualification:
+          type: string
+          nullable: true
+        subjects:
+          type: array
+          items:
+            type: string
+          example: ["Mathematics", "Physics"]
+        bio:
+          type: string
+          nullable: true
+        rating:
+          type: number
+          format: double
+          default: 0.0
+        totalRatings:
+          type: integer
+          default: 0
+        pricePerHourPKR:
+          type: integer
+          nullable: true
+          example: 1500
+        isApproved:
+          type: boolean
+          default: false
+        documents:
+          $ref: '#/components/schemas/TutorDocuments'
+
+    TutorDocuments:
+      type: object
+      nullable: true
+      properties:
+        cnicFront:
+          type: string
+          nullable: true
+          description: Base64 encoded PNG
+        cnicBack:
+          type: string
+          nullable: true
+          description: Base64 encoded PNG
+        teachingCertificate:
+          type: string
+          nullable: true
+          description: Base64 encoded PNG
+        degree:
+          type: string
+          nullable: true
+          description: Base64 encoded PNG
+
+    Session:
+      type: object
+      properties:
+        _id:
+          type: string
+        studentId:
+          type: string
+        tutorId:
+          type: string
+        subject:
+          type: string
+        recurrence:
+          $ref: '#/components/schemas/Recurrence'
+        status:
+          type: string
+          enum: [active, paused, cancelled, completed]
+        pricePerSessionPKR:
+          type: integer
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Recurrence:
+      type: object
+      required: [dayOfWeek, startTime, endTime, startDate]
+      properties:
+        dayOfWeek:
+          type: integer
+          minimum: 1
+          maximum: 7
+          description: "1=Monday, 7=Sunday"
+          example: 1
+        startTime:
+          type: string
+          pattern: "^\\d{2}:\\d{2}$"
+          example: "14:00"
+        endTime:
+          type: string
+          pattern: "^\\d{2}:\\d{2}$"
+          example: "15:00"
+        startDate:
+          type: string
+          format: date
+          example: "2026-06-10"
+        endDate:
+          type: string
+          format: date
+          nullable: true
+          description: Null means ongoing (no end date)
+
+    SessionInstance:
+      type: object
+      properties:
+        _id:
+          type: string
+        sessionId:
+          type: string
+        studentId:
+          type: string
+        tutorId:
+          type: string
+        scheduledDate:
+          type: string
+          format: date-time
+        startTime:
+          type: string
+          example: "14:00"
+        endTime:
+          type: string
+          example: "15:00"
+        status:
+          type: string
+          enum: [scheduled, completed, cancelled, missed]
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        feedback:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    Chat:
+      type: object
+      properties:
+        _id:
+          type: string
+        participants:
+          type: array
+          items:
+            type: string
+          description: Array of two user ObjectIds
+        lastMessage:
+          type: object
+          nullable: true
+          properties:
+            text:
+              type: string
+            senderId:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+        unreadCount:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Map of userId to unread message count
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        _id:
+          type: string
+        chatId:
+          type: string
+        senderId:
+          type: string
+        text:
+          type: string
+        type:
+          type: string
+          enum: [text, session_request, session_response]
+        sessionRequest:
+          $ref: '#/components/schemas/SessionRequestPayload'
+        status:
+          type: string
+          enum: [sent, delivered, seen]
+        createdAt:
+          type: string
+          format: date-time
+
+    SessionRequestPayload:
+      type: object
+      nullable: true
+      properties:
+        subject:
+          type: string
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        pricePerSessionPKR:
+          type: integer
+        status:
+          type: string
+          enum: [pending, accepted, rejected]
+
+    AiConversation:
+      type: object
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [student, tutor]
+        title:
+          type: string
+          description: Auto-generated from first message
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              isUser:
+                type: boolean
+              timestamp:
+                type: string
+                format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        title:
+          type: string
+        body:
+          type: string
+        type:
+          type: string
+          enum: [session_reminder, message, session_request, payment, system]
+        referenceId:
+          type: string
+          nullable: true
+        isRead:
+          type: boolean
+        scheduledFor:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    Payment:
+      type: object
+      properties:
+        _id:
+          type: string
+        studentId:
+          type: string
+        tutorId:
+          type: string
+        sessionInstanceId:
+          type: string
+          nullable: true
+        amountPKR:
+          type: integer
+          example: 1500
+        status:
+          type: string
+          enum: [pending, completed, refunded]
+        method:
+          type: string
+          enum: [cash, bank_transfer, easypaisa, jazzcash]
+        transactionDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
