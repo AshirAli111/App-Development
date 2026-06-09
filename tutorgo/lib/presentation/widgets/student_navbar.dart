@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
-
-// Screens
 import 'package:next_step_learning/presentation/screens/student/student_dashboard.dart';
 import 'package:next_step_learning/presentation/screens/student/student_messages_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_profile_screen.dart';
@@ -35,22 +35,25 @@ class _StudentNavbarState extends State<StudentNavbar> {
 
   final labels = ["Home", "Messages", "Courses", "Profile"];
 
-  final screens = [
-    const StudentDashboard(),
-    const StudentMessagesScreen(),
-    const TutorDiscoveryScreen(),
-    const StudentProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     double navHeight = MediaQuery.of(context).size.height * 0.11;
+
+    final screens = [
+      const StudentDashboard(),
+      StudentMessagesScreen(
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+      ),
+      const TutorDiscoveryScreen(),
+      const StudentProfileScreen(),
+    ];
 
     return Scaffold(
       extendBody: true,
       body: screens[currentIndex],
-
-      // ✅ FAB ONLY ON DASHBOARD
       floatingActionButton: currentIndex == 0
           ? FloatingActionButton.extended(
               heroTag: "ai_student_fab",
@@ -66,7 +69,6 @@ class _StudentNavbarState extends State<StudentNavbar> {
               label: const Text("AI Assistant"),
             )
           : null,
-
       bottomNavigationBar: _bubbleNavBar(context, navHeight),
     );
   }
@@ -105,7 +107,6 @@ class _StudentNavbarState extends State<StudentNavbar> {
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    // 🔵 Bubble highlight
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 220),
                       top: active ? -(navHeight * 0.25) : navHeight * 0.30,
@@ -130,8 +131,6 @@ class _StudentNavbarState extends State<StudentNavbar> {
                         ),
                       ),
                     ),
-
-                    // 🔘 Inactive Icon
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 150),
                       opacity: active ? 0 : 1,
@@ -141,8 +140,6 @@ class _StudentNavbarState extends State<StudentNavbar> {
                         color: iconColor?.withValues(alpha: 0.6),
                       ),
                     ),
-
-                    // 📌 Label
                     Positioned(
                       bottom: 8,
                       child: AnimatedOpacity(

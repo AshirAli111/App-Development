@@ -11,6 +11,7 @@ class UserRoutes {
 
     router.get('/me', _getMe);
     router.put('/me', _updateMe);
+    router.delete('/me', _deleteMe);
     router.get('/tutors', _getTutors);
     router.get('/tutors/<id>', _getTutorById);
 
@@ -36,6 +37,16 @@ class UserRoutes {
 
     if (updated == null) return errorResponse('User not found', statusCode: 404);
     return jsonResponse(updated);
+  }
+
+  Future<Response> _deleteMe(Request request) async {
+    final userId = request.headers['x-user-id'];
+    if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
+
+    final deleted = await _userService.deleteUser(userId);
+    if (!deleted) return errorResponse('User not found', statusCode: 404);
+
+    return jsonResponse({'message': 'Account deleted successfully'});
   }
 
   Future<Response> _getTutors(Request request) async {

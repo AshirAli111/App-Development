@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
-
-// Screens
 import 'package:next_step_learning/presentation/screens/tutor/tutor_home_screen.dart';
 import 'package:next_step_learning/presentation/screens/tutor/tutor_chats_screen.dart';
 import 'package:next_step_learning/presentation/screens/tutor/tutor_schedule_screen.dart';
@@ -30,23 +30,26 @@ class _TutorNavbarState extends State<TutorNavbar> {
 
   final labels = ["Home", "Messages", "Schedule", "Students", "Profile"];
 
-  final screens = [
-    const TutorHomeScreen(),
-    const TutorChatsScreen(),
-    const TutorScheduleScreen(),
-    TutorStudentsScreen(),
-    const TutorProfileScreen(),
-  ];
-
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     double navHeight = MediaQuery.of(context).size.height * 0.11;
+
+    final screens = [
+      const TutorHomeScreen(),
+      TutorChatsScreen(
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+      ),
+      const TutorScheduleScreen(),
+      TutorStudentsScreen(),
+      const TutorProfileScreen(),
+    ];
 
     return Scaffold(
       extendBody: true,
       body: screens[currentIndex],
-
-      // ✅ FAB ONLY ON HOME TAB
       floatingActionButton: currentIndex == 0
           ? FloatingActionButton.extended(
               heroTag: "ai_tutor_fab",
@@ -55,14 +58,13 @@ class _TutorNavbarState extends State<TutorNavbar> {
                 Navigator.pushNamed(
                   context,
                   AppRoutes.aiChatScreen,
-                  arguments: AiRole.tutor, // 👈 DIFFERENT ROLE
+                  arguments: AiRole.tutor,
                 );
               },
               icon: const Icon(LucideIcons.sparkles),
               label: const Text("AI Assistant"),
             )
           : null,
-
       bottomNavigationBar: _bubbleNavBar(context, navHeight),
     );
   }
@@ -101,7 +103,6 @@ class _TutorNavbarState extends State<TutorNavbar> {
                   clipBehavior: Clip.none,
                   alignment: Alignment.center,
                   children: [
-                    // 🔵 Bubble highlight
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 220),
                       top: active ? -(navHeight * 0.25) : navHeight * 0.30,
@@ -126,8 +127,6 @@ class _TutorNavbarState extends State<TutorNavbar> {
                         ),
                       ),
                     ),
-
-                    // 🔘 Inactive icon
                     AnimatedOpacity(
                       duration: const Duration(milliseconds: 150),
                       opacity: active ? 0 : 1,
@@ -137,8 +136,6 @@ class _TutorNavbarState extends State<TutorNavbar> {
                         color: iconColor?.withValues(alpha: 0.6),
                       ),
                     ),
-
-                    // 📌 Label
                     Positioned(
                       bottom: 8,
                       child: AnimatedOpacity(

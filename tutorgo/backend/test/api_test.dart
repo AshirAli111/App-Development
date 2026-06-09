@@ -89,7 +89,7 @@ void main() {
       expect(res['body']['user']['studentProfile'], isNotNull);
 
       studentToken = res['body']['accessToken'];
-      studentId = res['body']['user']['_id'];
+      studentId = res['body']['user']['id'];
     });
 
     test('registers a tutor successfully', () async {
@@ -106,7 +106,7 @@ void main() {
       expect(res['body']['user']['tutorProfile'], isNotNull);
 
       tutorToken = res['body']['accessToken'];
-      tutorId = res['body']['user']['_id'];
+      tutorId = res['body']['user']['id'];
     });
 
     test('rejects duplicate email', () async {

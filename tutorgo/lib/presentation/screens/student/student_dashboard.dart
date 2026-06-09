@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/session_service.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
@@ -7,8 +11,49 @@ import '../../../core/theme/spacing.dart';
 import '../../../routes/app_routes.dart';
 import '../aichat/ai_chat_screen.dart';
 
-class StudentDashboard extends StatelessWidget {
+class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
+
+  @override
+  State<StudentDashboard> createState() => _StudentDashboardState();
+}
+
+class _StudentDashboardState extends State<StudentDashboard> {
+  Map<String, dynamic>? _profile;
+  List<Map<String, dynamic>> _sessions = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final auth = context.read<AuthProvider>();
+    final userService = UserService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
+    final sessionService = SessionService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+
+    final profile = await userService.getMyProfile();
+    final sessions = await sessionService.getMySessions();
+
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _sessions = sessions;
+        _isLoading = false;
+      });
+    }
+  }
 
   bool _isDark(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark;
@@ -16,77 +61,78 @@ class StudentDashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dark = _isDark(context);
+    final auth = context.watch<AuthProvider>();
 
-    // ✅ only colors dynamic
     final bg = dark
         ? Theme.of(context).scaffoldBackgroundColor
         : AppColors.background;
     final card = dark ? Theme.of(context).cardColor : Colors.white;
     final border = dark ? Theme.of(context).dividerColor : AppColors.border;
-
     final textPrimary = dark
         ? Theme.of(context).colorScheme.onSurface
         : AppColors.textDark;
-
     final textSecondary = dark
         ? Theme.of(context).colorScheme.onSurface.withValues(alpha: .70)
         : AppColors.textLight;
 
+    final userName = _profile?['fullName'] ?? auth.fullName;
+    final firstName =
+        userName.isNotEmpty ? userName.split(' ').first : 'Student';
+
+    // Derive stats from sessions
+    final totalSessions = _sessions.length;
+    final activeSessions =
+        _sessions.where((s) => s['status'] == 'active').toList();
+
+    // Extract unique tutor names from sessions
+    final tutorNames = <String>{};
+    for (final s in _sessions) {
+      final tutorName = s['tutorName'] as String? ?? '';
+      if (tutorName.isNotEmpty) tutorNames.add(tutorName);
+    }
+
     return Scaffold(
       backgroundColor: bg,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.s16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(context, textPrimary, textSecondary),
-              const SizedBox(height: AppSpacing.s20),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(AppSpacing.s16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _header(context, firstName, textPrimary, textSecondary),
+                    const SizedBox(height: AppSpacing.s20),
+                    _statsRow(context, totalSessions, tutorNames.length),
+                    const SizedBox(height: AppSpacing.s28),
 
-              _dailyGoal(context),
-              const SizedBox(height: AppSpacing.s28),
+                    if (activeSessions.isNotEmpty) ...[
+                      Text(
+                        "Active Sessions",
+                        style: AppTypography.h3.copyWith(color: textPrimary),
+                      ),
+                      const SizedBox(height: AppSpacing.s12),
+                      _sessionsList(
+                          context, activeSessions, card, border, textPrimary, textSecondary),
+                      const SizedBox(height: AppSpacing.s28),
+                    ],
 
-              Text(
-                "Continue Learning",
-                style: AppTypography.h3.copyWith(color: textPrimary),
+                    if (tutorNames.isNotEmpty) ...[
+                      Text(
+                        "Your Tutors",
+                        style: AppTypography.h3.copyWith(color: textPrimary),
+                      ),
+                      const SizedBox(height: AppSpacing.s12),
+                      _yourTutors(context, tutorNames.toList(), textPrimary),
+                    ],
+
+                    if (_sessions.isEmpty)
+                      _emptyState(context, textSecondary),
+
+                    const SizedBox(height: 90),
+                  ],
+                ),
               ),
-              const SizedBox(height: AppSpacing.s12),
-              _courseProgressCards(
-                context,
-                card,
-                border,
-                textPrimary,
-                textSecondary,
-              ),
-
-              const SizedBox(height: AppSpacing.s28),
-              Text(
-                "Flashcards of the Day",
-                style: AppTypography.h3.copyWith(color: textPrimary),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              _flashcards(context, card, border, textPrimary, textSecondary),
-
-              const SizedBox(height: AppSpacing.s28),
-              Text(
-                "Upcoming Class",
-                style: AppTypography.h3.copyWith(color: textPrimary),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              _upcomingClass(context, card, border, textPrimary, textSecondary),
-
-              const SizedBox(height: AppSpacing.s28),
-              Text(
-                "Your Tutors",
-                style: AppTypography.h3.copyWith(color: textPrimary),
-              ),
-              const SizedBox(height: AppSpacing.s12),
-              _yourTutors(context, textPrimary),
-
-              const SizedBox(height: 90),
-            ],
-          ),
-        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: "ai_student_fab",
@@ -104,10 +150,8 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  // ----------------------------------------------------------
-  // HEADER
-  // ----------------------------------------------------------
-  Widget _header(BuildContext context, Color textPrimary, Color textSecondary) {
+  Widget _header(BuildContext context, String name, Color textPrimary,
+      Color textSecondary) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -115,7 +159,7 @@ class StudentDashboard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Hi, Student 👋",
+              "Hi, $name",
               style: AppTypography.h2.copyWith(color: textPrimary),
             ),
             const SizedBox(height: 4),
@@ -127,9 +171,8 @@ class StudentDashboard extends StatelessWidget {
         ),
         CircleAvatar(
           radius: 22,
-          backgroundColor: Theme.of(
-            context,
-          ).colorScheme.primary.withValues(alpha: 0.12),
+          backgroundColor:
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
           child: Icon(
             LucideIcons.user,
             color: Theme.of(context).colorScheme.primary,
@@ -139,88 +182,61 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  // ----------------------------------------------------------
-  // DAILY GOAL (same as original)
-  // ----------------------------------------------------------
-  Widget _dailyGoal(BuildContext context) {
+  Widget _statsRow(BuildContext context, int sessions, int tutors) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.s16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary, // ✅ theme primary
+        color: Theme.of(context).colorScheme.primary,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          Text(
-            "Daily Goal",
-            style: AppTypography.h3.copyWith(color: Colors.white),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "Study 45 minutes today",
-            style: AppTypography.body14.copyWith(color: Colors.white70),
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-            value: 0.38,
-            color: Colors.white,
-            backgroundColor: Colors.white.withValues(alpha: 0.3),
-            minHeight: 5,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            "38% completed",
-            style: AppTypography.body12.copyWith(color: Colors.white),
-          ),
+          _statItem("Sessions", sessions.toString()),
+          _statItem("Tutors", tutors.toString()),
         ],
       ),
     );
   }
 
-  // ----------------------------------------------------------
-  // COURSE PROGRESS CARDS
-  // ----------------------------------------------------------
-  Widget _courseProgressCards(
+  Widget _statItem(String label, String value) {
+    return Column(
+      children: [
+        Text(value,
+            style: AppTypography.h2.copyWith(color: Colors.white)),
+        const SizedBox(height: 4),
+        Text(label,
+            style: AppTypography.body12.copyWith(color: Colors.white70)),
+      ],
+    );
+  }
+
+  Widget _sessionsList(
     BuildContext context,
+    List<Map<String, dynamic>> sessions,
     Color card,
     Color border,
     Color textPrimary,
     Color textSecondary,
   ) {
-    final items = [
-      {"title": "Algebra Basics", "progress": 0.70},
-      {"title": "Intro to Physics", "progress": 0.45},
-    ];
-
     return Column(
-      children: items.map((c) {
+      children: sessions.take(3).map((s) {
         return Container(
           margin: const EdgeInsets.only(bottom: 14),
           padding: const EdgeInsets.all(AppSpacing.s16),
           decoration: BoxDecoration(
             color: card,
             borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            border: Border.all(color: border),
           ),
           child: Row(
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.12),
-                child: Icon(
-                  LucideIcons.bookOpen,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                backgroundColor:
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                child: Icon(LucideIcons.bookOpen,
+                    color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: AppSpacing.s16),
               Expanded(
@@ -228,24 +244,19 @@ class StudentDashboard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      c["title"].toString(),
+                      s['subject'] ?? 'Session',
                       style: AppTypography.h3.copyWith(color: textPrimary),
                     ),
-                    const SizedBox(height: 6),
-                    LinearProgressIndicator(
-                      value: c["progress"] as double,
-                      minHeight: 5,
-                      borderRadius: BorderRadius.circular(12),
-                      color: Theme.of(context).colorScheme.primary,
-                      backgroundColor: border,
+                    Text(
+                      'with ${s['tutorName'] ?? 'Tutor'}',
+                      style: AppTypography.body12.copyWith(color: textSecondary),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
               Text(
-                "${((c["progress"] as double) * 100).toInt()}%",
-                style: AppTypography.body14.copyWith(color: textSecondary),
+                s['recurrence'] ?? '',
+                style: AppTypography.body12.copyWith(color: textSecondary),
               ),
             ],
           ),
@@ -254,115 +265,8 @@ class StudentDashboard extends StatelessWidget {
     );
   }
 
-  // ----------------------------------------------------------
-  // FLASHCARDS
-  // ----------------------------------------------------------
-  Widget _flashcards(
-    BuildContext context,
-    Color card,
-    Color border,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    final cards = [
-      {"term": "Photosynthesis", "meaning": "Process plants use to make food"},
-      {"term": "Gravity", "meaning": "Force that pulls objects downward"},
-      {"term": "Equation", "meaning": "Statement showing equality"},
-    ];
-
-    return SizedBox(
-      height: 115,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemCount: cards.length,
-        itemBuilder: (_, i) {
-          return Container(
-            width: 165,
-            padding: const EdgeInsets.all(AppSpacing.s16),
-            decoration: BoxDecoration(
-              color: card,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  cards[i]["term"]!,
-                  style: AppTypography.h3.copyWith(color: textPrimary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  cards[i]["meaning"]!,
-                  style: AppTypography.body12.copyWith(color: textSecondary),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // UPCOMING CLASS
-  // ----------------------------------------------------------
-  Widget _upcomingClass(
-    BuildContext context,
-    Color card,
-    Color border,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.s16),
-      decoration: BoxDecoration(
-        color: card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 24,
-            backgroundColor: Theme.of(
-              context,
-            ).colorScheme.secondary.withValues(alpha: 0.18),
-            child: Icon(
-              LucideIcons.video,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-          ),
-          const SizedBox(width: AppSpacing.s16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Math Live Session",
-                style: AppTypography.h3.copyWith(color: textPrimary),
-              ),
-              Text(
-                "Today • 4:30 PM",
-                style: AppTypography.body14.copyWith(color: textSecondary),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ----------------------------------------------------------
-  // YOUR TUTORS
-  // ----------------------------------------------------------
-  Widget _yourTutors(BuildContext context, Color textPrimary) {
-    final tutors = ["Ayesha", "Bilal", "Sara"];
-
+  Widget _yourTutors(
+      BuildContext context, List<String> tutors, Color textPrimary) {
     return SizedBox(
       height: 70,
       child: ListView.separated(
@@ -374,22 +278,42 @@ class StudentDashboard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.12),
-                child: Icon(
-                  LucideIcons.user,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+                backgroundColor:
+                    Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                child: Icon(LucideIcons.user,
+                    color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(height: 6),
               Text(
-                tutors[i],
+                tutors[i].split(' ').first,
                 style: AppTypography.body12.copyWith(color: textPrimary),
               ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _emptyState(BuildContext context, Color textSecondary) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 60),
+        child: Column(
+          children: [
+            Icon(LucideIcons.bookOpen, size: 48, color: textSecondary),
+            const SizedBox(height: 16),
+            Text(
+              "No sessions yet",
+              style: AppTypography.h3.copyWith(color: textSecondary),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Find a tutor to start learning!",
+              style: AppTypography.body14.copyWith(color: textSecondary),
+            ),
+          ],
+        ),
       ),
     );
   }

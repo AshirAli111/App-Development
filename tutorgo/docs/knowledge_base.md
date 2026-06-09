@@ -9,7 +9,7 @@
 | **Description** | AI-powered tutoring platform connecting students with tutors |
 | **Flutter SDK** | ^3.9.2 |
 | **Version** | 1.0.0+1 |
-| **Initial Route** | Onboarding Screen |
+| **Initial Route** | Splash Screen (auth check) |
 | **Target Platforms** | iOS, Android, Web |
 
 ---
@@ -31,6 +31,16 @@ tutorgo/
 │   │       └── helpers.dart          # Utility helper functions
 │   │
 │   ├── data/                          # Data layer
+│   │   ├── providers/
+│   │   │   └── auth_provider.dart    # Auth state (ChangeNotifier)
+│   │   ├── services/
+│   │   │   ├── auth_service.dart     # HTTP client for auth endpoints
+│   │   │   ├── user_service.dart     # User profile CRUD
+│   │   │   ├── session_service.dart  # Session management
+│   │   │   ├── notification_service.dart # Notifications
+│   │   │   ├── payment_service.dart  # Payments
+│   │   │   ├── chat_service.dart     # Messaging
+│   │   │   └── call_service.dart     # Jitsi call integration
 │   │   └── dummy/
 │   │       ├── dummy_messages.dart   # Placeholder message data
 │   │       ├── dummy_tutors.dart     # Placeholder tutor data
@@ -190,13 +200,20 @@ tutorgo/
 
 **Primary:** Provider + ChangeNotifier
 
+- **AuthProvider** (`lib/data/providers/auth_provider.dart`)
+  - Manages JWT auth state (accessToken, refreshToken, userId, role, email, fullName)
+  - Persists tokens in `shared_preferences`
+  - Auto-refreshes expired tokens on app start
+  - Methods: `login()`, `register()`, `logout()`, `init()`, `tryRefreshToken()`
+  - Access: `context.read<AuthProvider>()` or `context.watch<AuthProvider>()`
+
 - **ThemeProvider** (`lib/core/theme/theme_manager.dart`)
   - Manages light/dark theme mode
   - Persists preference via `shared_preferences`
   - Access: `context.watch<ThemeProvider>()`
 
 - **Screen-Level State:** StatefulWidget with TextEditingControllers
-- **Data:** Currently dummy/hardcoded, ready for API integration
+- **Data:** All screens wired to backend API via service classes
 
 ### Navigation & Routing
 
@@ -479,19 +496,25 @@ Uses percentage-based blocks (1% of screen dimensions).
 ## 11. Authentication Flow
 
 ```
-┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌───────────────┐    ┌──────────┐
-│  Onboarding │───>│    Login     │───>│Role Selection│───>│ Profile Setup │───>│Dashboard │
-│   Screen    │    │   Screen    │    │   Screen     │    │   Screen      │    │  (Navbar)│
-└─────────────┘    └─────────────┘    └──────────────┘    └───────────────┘    └──────────┘
-                   │                  │                   │
-                   ├─ Email/Password  ├─ Student          ├─ Student: name, email,
-                   ├─ Google OAuth    └─ Tutor               phone, age, grade, courses
-                   └─ Facebook OAuth                      └─ Tutor: name, email, phone,
-                                                             experience, qualification,
-                                                             documents, subjects
+App Launch → Splash Screen → Check stored token
+  ├─ Token exists → POST /auth/refresh
+  │   ├─ Valid → Navigate to navbar (based on stored role)
+  │   └─ Invalid → Clear tokens → Onboarding
+  └─ No token → Onboarding → Login screen
+
+Login Screen → POST /auth/login
+  ├─ Success → Store tokens (SharedPreferences) → Navigate to navbar
+  └─ Failure → Show error SnackBar
+
+Register link → Register Screen → POST /auth/register
+  ├─ Success → Store tokens → Profile Setup → PUT /api/users/me → Navbar
+  └─ Failure → Show error message
 ```
 
-**Status:** UI complete, backend integration pending.
+**Token Storage Keys:**
+- `auth_access_token`, `auth_refresh_token`, `auth_user_id`, `auth_role`, `auth_email`, `auth_full_name`, `auth_base_url`
+
+**Status:** Fully implemented with JWT backend.
 
 ---
 
@@ -695,16 +718,17 @@ Either hangs up → Jitsi fires conferenceTerminated
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Backend Integration | Partial | Chat integrated, other screens still dummy |
-| Authentication | UI Only | Login flow has no backend |
+| Backend Integration | Complete | All screens wired to real backend API |
+| Authentication | JWT Implemented | Login, register, auto-refresh, token persistence |
 | Payment Processing | Mock Stripe Implemented | Full checkout session flow with WebView |
-| Data Persistence | Minimal | Only theme pref saved locally |
-| API Key Security | Hardcoded | Needs env variable migration |
-| Session Management | None | App starts at onboarding each time |
-| Database | None | No local DB (ready for Firebase/SQLite) |
+| Data Persistence | SharedPreferences | Auth tokens + theme pref persisted |
+| API Key Security | Hardcoded | Gemini key needs env variable migration |
+| Session Management | JWT Token-Based | Auto-login on app restart via refresh token |
+| Database | MongoDB (backend) | Backend uses MongoDB; no local DB needed |
 | Video/Voice Calls | Jitsi Integrated | Free calls via meet.jit.si public server |
 | Real-time Messaging | Polling-Based | 2s interval, connected to backend API |
 | Push Notifications | Not Implemented | Needs FCM setup |
+| AI Chat | Direct Gemini | Could migrate to backend /api/ai/ endpoints |
 
 ---
 

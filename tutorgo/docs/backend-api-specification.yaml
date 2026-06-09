@@ -192,6 +192,27 @@ paths:
                 $ref: '#/components/schemas/User'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Users]
+      summary: Delete current user account
+      description: Permanently deletes the authenticated user's account.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Account deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Account deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/users/tutors:
     get:

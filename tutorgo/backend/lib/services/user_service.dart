@@ -76,6 +76,13 @@ class UserService {
     );
   }
 
+  Future<bool> deleteUser(String userId) async {
+    final result = await _users.deleteOne(
+      where.eq('_id', ObjectId.fromHexString(userId)),
+    );
+    return result.nRemoved == 1;
+  }
+
   Future<void> updateTutorDocuments(
     String userId,
     Map<String, String> documents,

@@ -4,183 +4,165 @@ import 'package:provider/provider.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/theme_manager.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
+import 'package:next_step_learning/data/services/session_service.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
-class StudentProfileScreen extends StatelessWidget {
+class StudentProfileScreen extends StatefulWidget {
   const StudentProfileScreen({super.key});
 
   @override
+  State<StudentProfileScreen> createState() => _StudentProfileScreenState();
+}
+
+class _StudentProfileScreenState extends State<StudentProfileScreen> {
+  Map<String, dynamic>? _profile;
+  int _sessionCount = 0;
+  int _tutorCount = 0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final auth = context.read<AuthProvider>();
+    final userService = UserService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
+    final sessionService = SessionService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+
+    final profile = await userService.getMyProfile();
+    final sessions = await sessionService.getMySessions();
+
+    final tutorIds = <String>{};
+    for (final s in sessions) {
+      final tid = s['tutorId'] as String? ?? '';
+      if (tid.isNotEmpty) tutorIds.add(tid);
+    }
+
+    if (mounted) {
+      setState(() {
+        _profile = profile;
+        _sessionCount = sessions.length;
+        _tutorCount = tutorIds.length;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _handleLogout() async {
+    final auth = context.read<AuthProvider>();
+    await auth.logout();
+    if (!mounted) return;
+    Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final fullName = _profile?['fullName'] ?? auth.fullName;
+    final grade = _profile?['studentProfile']?['grade'] ?? '';
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: AppSpacing.s24),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: AppSpacing.s24),
+                    _profileHeader(context, fullName, grade),
+                    const SizedBox(height: AppSpacing.s24),
+                    _statsRow(context),
+                    const SizedBox(height: AppSpacing.s32),
 
-              _profileHeader(context),
+                    _sectionTitle(context, "Account"),
+                    _menuTile(context, "Edit Profile", LucideIcons.userCog,
+                        AppRoutes.studentEditProfile),
+                    _menuTile(context, "My Tutors", LucideIcons.users2,
+                        AppRoutes.studentTutors),
+                    _menuTile(context, "Learning History",
+                        LucideIcons.bookOpenCheck, AppRoutes.studentHistory),
+                    _menuTile(context, "Payment Methods", LucideIcons.creditCard,
+                        AppRoutes.studentPayments),
+                    _menuTile(context, "Delete Account", LucideIcons.userMinus,
+                        AppRoutes.studentDeleteAccount),
 
-              const SizedBox(height: AppSpacing.s24),
-              _statsRow(context),
+                    const SizedBox(height: AppSpacing.s32),
 
-              const SizedBox(height: AppSpacing.s32),
+                    _sectionTitle(context, "Preferences"),
+                    _menuTile(context, "Notifications", LucideIcons.bell,
+                        AppRoutes.studentNotifications),
+                    _menuTile(context, "Privacy Settings", LucideIcons.shield,
+                        AppRoutes.studentPrivacy),
+                    _menuTile(context, "Language", LucideIcons.languages,
+                        AppRoutes.studentLanguage),
 
-              // ---------------- ACCOUNT ----------------
-              _sectionTitle(context, "Account"),
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.s20),
+                      title: Text("Dark Mode",
+                          style: Theme.of(context).textTheme.bodyLarge),
+                      value: context.watch<ThemeProvider>().isDark,
+                      onChanged: (value) {
+                        context.read<ThemeProvider>().toggleTheme(value);
+                      },
+                    ),
 
-              _menuTile(
-                context,
-                "Edit Profile",
-                LucideIcons.userCog,
-                AppRoutes.studentEditProfile,
-              ),
-              _menuTile(
-                context,
-                "My Tutors",
-                LucideIcons.users2,
-                AppRoutes.studentTutors,
-              ),
-              _menuTile(
-                context,
-                "Learning History",
-                LucideIcons.bookOpenCheck,
-                AppRoutes.studentHistory,
-              ),
-              _menuTile(
-                context,
-                "Payment Methods",
-                LucideIcons.creditCard,
-                AppRoutes.studentPayments,
-              ),
-              _menuTile(
-                context,
-                "Delete Account",
-                LucideIcons.userMinus,
-                AppRoutes.studentDeleteAccount,
-              ),
+                    const SizedBox(height: AppSpacing.s32),
 
-              const SizedBox(height: AppSpacing.s32),
+                    _sectionTitle(context, "Support"),
+                    _menuTile(context, "Help Center", LucideIcons.helpCircle,
+                        AppRoutes.studentHelpCenter),
+                    _menuTile(context, "Contact Support", Icons.headset_mic,
+                        AppRoutes.studentSupport),
 
-              // ---------------- PREFERENCES ----------------
-              _sectionTitle(context, "Preferences"),
-
-              _menuTile(
-                context,
-                "Notifications",
-                LucideIcons.bell,
-                AppRoutes.studentNotifications,
-              ),
-              _menuTile(
-                context,
-                "Privacy Settings",
-                LucideIcons.shield,
-                AppRoutes.studentPrivacy,
-              ),
-              _menuTile(
-                context,
-                "Language",
-                LucideIcons.languages,
-                AppRoutes.studentLanguage,
-              ),
-
-              /// 🌙 DARK MODE TOGGLE (SAME AS TUTOR)
-              SwitchListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.s20,
+                    const SizedBox(height: AppSpacing.s32),
+                    _logoutButton(context),
+                    const SizedBox(height: AppSpacing.s40),
+                  ],
                 ),
-                title: Text(
-                  "Dark Mode",
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                value: context.watch<ThemeProvider>().isDark,
-                onChanged: (value) {
-                  context.read<ThemeProvider>().toggleTheme(value);
-                },
               ),
-
-              const SizedBox(height: AppSpacing.s32),
-
-              // ---------------- SUPPORT ----------------
-              _sectionTitle(context, "Support"),
-
-              _menuTile(
-                context,
-                "Help Center",
-                LucideIcons.helpCircle,
-                AppRoutes.studentHelpCenter,
-              ),
-              _menuTile(
-                context,
-                "Contact Support",
-                Icons.headset_mic,
-                AppRoutes.studentSupport,
-              ),
-
-              const SizedBox(height: AppSpacing.s32),
-
-              _logoutButton(context),
-
-              const SizedBox(height: AppSpacing.s40),
-            ],
-          ),
-        ),
       ),
     );
   }
 
-  // ------------------------------------------------------------
-  Widget _profileHeader(BuildContext context) {
+  Widget _profileHeader(BuildContext context, String name, String grade) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.only(
-        top: AppSpacing.s12,
-        bottom: AppSpacing.s24,
-      ),
+      padding: const EdgeInsets.only(top: AppSpacing.s12, bottom: AppSpacing.s24),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: Column(
         children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundColor: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: .12),
-                child: Icon(
-                  Icons.person_rounded,
-                  size: 58,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              Positioned(
-                bottom: -4,
-                right: -4,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.edit, size: 16, color: Colors.white),
-                ),
-              ),
-            ],
+          CircleAvatar(
+            radius: 48,
+            backgroundColor:
+                Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+            child: Icon(Icons.person_rounded, size: 58,
+                color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: AppSpacing.s12),
-          Text(
-            "Student Name",
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
+          Text(name, style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: AppSpacing.s4),
           Text(
-            "Grade 10 • Learner",
+            grade.isNotEmpty ? "$grade • Student" : "Student",
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ],
@@ -194,9 +176,8 @@ class StudentProfileScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _statCard(context, "5", "Tutors"),
-          _statCard(context, "12h", "Study Time"),
-          _statCard(context, "14", "Lessons"),
+          _statCard(context, _tutorCount.toString(), "Tutors"),
+          _statCard(context, _sessionCount.toString(), "Sessions"),
         ],
       ),
     );
@@ -204,7 +185,7 @@ class StudentProfileScreen extends StatelessWidget {
 
   Widget _statCard(BuildContext context, String number, String label) {
     return Container(
-      width: 105,
+      width: 140,
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.s16),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
@@ -229,31 +210,19 @@ class StudentProfileScreen extends StatelessWidget {
 
   Widget _sectionTitle(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.only(
-        left: AppSpacing.s20,
-        bottom: AppSpacing.s8,
-      ),
+      padding: const EdgeInsets.only(left: AppSpacing.s20, bottom: AppSpacing.s8),
       child: Text(title, style: Theme.of(context).textTheme.titleLarge),
     );
   }
 
-  Widget _menuTile(
-    BuildContext context,
-    String title,
-    IconData icon,
-    String route,
-  ) {
+  Widget _menuTile(BuildContext context, String title, IconData icon, String route) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, route),
       child: Container(
         margin: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s16,
-          vertical: AppSpacing.s8,
-        ),
+            horizontal: AppSpacing.s16, vertical: AppSpacing.s8),
         padding: const EdgeInsets.symmetric(
-          horizontal: AppSpacing.s16,
-          vertical: AppSpacing.s16,
-        ),
+            horizontal: AppSpacing.s16, vertical: AppSpacing.s16),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(18),
@@ -270,8 +239,7 @@ class StudentProfileScreen extends StatelessWidget {
             Icon(icon, color: Theme.of(context).colorScheme.primary, size: 22),
             const SizedBox(width: AppSpacing.s12),
             Expanded(
-              child: Text(title, style: Theme.of(context).textTheme.bodyLarge),
-            ),
+                child: Text(title, style: Theme.of(context).textTheme.bodyLarge)),
             Icon(Icons.chevron_right, color: Theme.of(context).iconTheme.color),
           ],
         ),
@@ -281,7 +249,7 @@ class StudentProfileScreen extends StatelessWidget {
 
   Widget _logoutButton(BuildContext context) {
     return GestureDetector(
-      onTap: () {},
+      onTap: _handleLogout,
       child: Container(
         width: double.infinity,
         margin: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
@@ -294,8 +262,8 @@ class StudentProfileScreen extends StatelessWidget {
           child: Text(
             "Logout",
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Theme.of(context).colorScheme.error,
-            ),
+                  color: Theme.of(context).colorScheme.error,
+                ),
           ),
         ),
       ),

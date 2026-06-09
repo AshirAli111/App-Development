@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
+import 'package:next_step_learning/presentation/screens/splash/splash_screen.dart';
+import 'package:next_step_learning/presentation/screens/login/register_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_chats_conversation_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_dashboard.dart';
 import 'package:next_step_learning/presentation/screens/student/student_delete_account_screen.dart';
@@ -46,11 +48,17 @@ class AppPages {
     final args = settings.arguments;
 
     switch (settings.name) {
+      case AppRoutes.splash:
+        return _page(const SplashScreen());
+
       case AppRoutes.onboarding:
         return _page(const OnboardingScreen());
 
       case AppRoutes.login:
         return _page(const LoginScreen());
+
+      case AppRoutes.register:
+        return _page(const RegisterScreen());
 
       case AppRoutes.roleSelection:
         return _page(const RoleSelectionScreen());
@@ -155,9 +163,6 @@ class AppPages {
       case AppRoutes.aiChatScreen:
         final role = settings.arguments as AiRole;
         return _page(AiChatScreen(role: role));
-
-      // case AppRoutes.studentSubscription:
-      //   return _page(const StudentSubscriptionScreen());
 
       case AppRoutes.studentDeleteAccount:
         return _page(const StudentDeleteAccountScreen());

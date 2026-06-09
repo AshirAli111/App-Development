@@ -1,39 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/session_service.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/typography.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
-class TutorStudentsScreen extends StatelessWidget {
-  TutorStudentsScreen({super.key});
+class TutorStudentsScreen extends StatefulWidget {
+  const TutorStudentsScreen({super.key});
 
-  final List<Map<String, dynamic>> students = [
-    {
-      "name": "Ayesha",
-      "grade": "Grade 9",
-      "progress": 0.82,
-      "image": null,
-      "lastSession": "Yesterday",
-      "assignments": 2,
-    },
-    {
-      "name": "Bilal",
-      "grade": "Grade 10",
-      "progress": 0.67,
-      "image": null,
-      "lastSession": "3 days ago",
-      "assignments": 1,
-    },
-    {
-      "name": "Sara",
-      "grade": "Grade 11",
-      "progress": 0.51,
-      "image": null,
-      "lastSession": "Today",
-      "assignments": 0,
-    },
-  ];
+  @override
+  State<TutorStudentsScreen> createState() => _TutorStudentsScreenState();
+}
+
+class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
+  List<Map<String, dynamic>> _students = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudents();
+  }
+
+  Future<void> _loadStudents() async {
+    final auth = context.read<AuthProvider>();
+    final sessionService = SessionService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+
+    final sessions = await sessionService.getMySessions();
+
+    // Derive unique students from sessions
+    final studentMap = <String, Map<String, dynamic>>{};
+    for (final s in sessions) {
+      final studentId = s['studentId'] as String? ?? '';
+      final studentName = s['studentName'] as String? ?? 'Student';
+      if (studentId.isNotEmpty && !studentMap.containsKey(studentId)) {
+        studentMap[studentId] = {
+          'name': studentName,
+          'subject': s['subject'] ?? '',
+          'status': s['status'] ?? '',
+        };
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _students = studentMap.values.toList();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,126 +64,97 @@ class TutorStudentsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         backgroundColor: theme.scaffoldBackgroundColor,
         elevation: 0,
         centerTitle: true,
         title: Text("My Students", style: AppTypography.h2),
+        automaticallyImplyLeading: false,
       ),
-
-      body: ListView.builder(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(AppSpacing.s20),
-        itemCount: students.length,
-        itemBuilder: (context, index) {
-          final s = students[index];
-
-          return GestureDetector(
-            onTap: () {
-              Navigator.pushNamed(
-                context,
-                AppRoutes.tutorStudentDetails,
-                arguments: s,
-              );
-            },
-
-            child: Container(
-              margin: const EdgeInsets.only(bottom: AppSpacing.s16),
-              padding: const EdgeInsets.all(AppSpacing.s20),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: [
-                  BoxShadow(
-                    color: theme.shadowColor.withValues(alpha: .15),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: theme.colorScheme.primary.withValues(alpha: .12),
-                    backgroundImage: s["image"] != null
-                        ? NetworkImage(s["image"])
-                        : null,
-                    child: s["image"] == null
-                        ? Icon(
-                            LucideIcons.user,
-                            color: theme.colorScheme.primary,
-                          )
-                        : null,
-                  ),
-
-                  const SizedBox(width: AppSpacing.s16),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(s["name"], style: AppTypography.h3),
-
-                        Text(
-                          s["grade"],
-                          style: AppTypography.body14.copyWith(
-                            color: theme.textTheme.bodyMedium?.color,
-                          ),
-                        ),
-
-                        const SizedBox(height: AppSpacing.s8),
-
-                        LinearProgressIndicator(
-                          value: s["progress"],
-                          backgroundColor: theme.dividerColor.withValues(alpha: .3),
-                          color: theme.colorScheme.primary,
-                          minHeight: 6,
-                          borderRadius: BorderRadius.circular(40),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _students.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        s["lastSession"],
-                        style: AppTypography.body12.copyWith(
-                          color: theme.textTheme.bodyMedium?.color,
-                        ),
-                      ),
-
-                      const SizedBox(height: AppSpacing.s8),
-
-                      if (s["assignments"] > 0)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.secondary.withValues(alpha: .15),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "${s["assignments"]} tasks",
-                            style: AppTypography.body12.copyWith(
-                              color: theme.colorScheme.secondary,
-                            ),
-                          ),
-                        ),
+                      Icon(LucideIcons.users2, size: 48,
+                          color: theme.iconTheme.color?.withValues(alpha: .6)),
+                      const SizedBox(height: 16),
+                      Text("No students yet",
+                          style: AppTypography.body16),
                     ],
                   ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.s20, vertical: AppSpacing.s12),
+                  itemCount: _students.length,
+                  itemBuilder: (_, i) {
+                    final student = _students[i];
+                    return _studentCard(context, student);
+                  },
+                ),
+    );
+  }
+
+  Widget _studentCard(BuildContext context, Map<String, dynamic> student) {
+    final theme = Theme.of(context);
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.pushNamed(
+          context,
+          AppRoutes.tutorStudentDetails,
+          arguments: {
+            "name": student['name'],
+            "grade": student['subject'],
+            "progress": 0.0,
+            "assignments": 0,
+            "lastSession": "Active",
+            "image": null,
+          },
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: AppSpacing.s16),
+        padding: const EdgeInsets.all(AppSpacing.s16),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: [
+            BoxShadow(
+              color: theme.shadowColor.withValues(alpha: .12),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 24,
+              backgroundColor:
+                  theme.colorScheme.primary.withValues(alpha: .12),
+              child: Icon(LucideIcons.user,
+                  color: theme.colorScheme.primary),
+            ),
+            const SizedBox(width: AppSpacing.s16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(student['name'] ?? '',
+                      style: theme.textTheme.titleMedium),
+                  Text(student['subject'] ?? '',
+                      style: theme.textTheme.bodySmall),
                 ],
               ),
             ),
-          );
-        },
+            Icon(LucideIcons.chevronRight,
+                color: theme.iconTheme.color, size: 22),
+          ],
+        ),
       ),
     );
   }

@@ -79,7 +79,7 @@ class TutorProfile {
     this.rating = 0.0,
     this.totalRatings = 0,
     this.pricePerHourPKR,
-    this.isApproved = false,
+    this.isApproved = true,
     this.documents,
   });
 
@@ -187,7 +187,8 @@ class UserModel {
     final map = toMap();
     map.remove('password');
     if (map['_id'] != null) {
-      map['_id'] = (map['_id'] as ObjectId).oid;
+      map['id'] = (map['_id'] as ObjectId).oid;
+      map.remove('_id');
     }
     return map;
   }
