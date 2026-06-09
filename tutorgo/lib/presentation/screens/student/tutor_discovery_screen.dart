@@ -62,7 +62,7 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
           'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
           'price': tutor['tutorProfile']?['pricePerHour'] ?? 0,
           'image': tutor['profileImage'],
-          'experience': tutor['tutorProfile']?['experience'] ?? 0,
+          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
           'qualification': tutor['tutorProfile']?['qualification'] ?? '',
         });
       }
@@ -77,7 +77,7 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
           'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
           'price': tutor['tutorProfile']?['pricePerHour'] ?? 0,
           'image': tutor['profileImage'],
-          'experience': tutor['tutorProfile']?['experience'] ?? 0,
+          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
           'qualification': tutor['tutorProfile']?['qualification'] ?? '',
         });
       }

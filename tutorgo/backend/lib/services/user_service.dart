@@ -25,8 +25,22 @@ class UserService {
     updates.remove('createdAt');
     updates['updatedAt'] = DateTime.now();
 
+    // Flatten nested objects to dot-notation so we don't overwrite entire sub-documents
+    final flatUpdates = <String, dynamic>{};
+    void flatten(String prefix, Map<String, dynamic> map) {
+      for (final entry in map.entries) {
+        final key = prefix.isEmpty ? entry.key : '$prefix.${entry.key}';
+        if (entry.value is Map<String, dynamic>) {
+          flatten(key, entry.value as Map<String, dynamic>);
+        } else {
+          flatUpdates[key] = entry.value;
+        }
+      }
+    }
+    flatten('', updates);
+
     final modifier = ModifierBuilder();
-    updates.forEach((key, value) {
+    flatUpdates.forEach((key, value) {
       modifier.set(key, value);
     });
 

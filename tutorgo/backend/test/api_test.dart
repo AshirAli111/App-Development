@@ -631,4 +631,14 @@ void main() {
       expect(stripePayment['stripeSessionId'], stripeSessionId);
     });
   });
+
+  // Clean up test users after all tests complete
+  tearDownAll(() async {
+    try {
+      await request('DELETE', '/api/users/me', token: studentToken);
+    } catch (_) {}
+    try {
+      await request('DELETE', '/api/users/me', token: tutorToken);
+    } catch (_) {}
+  });
 }

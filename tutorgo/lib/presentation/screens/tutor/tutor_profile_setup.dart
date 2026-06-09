@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -91,6 +92,16 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     }
   }
 
+  Future<String?> _fileToBase64(File? file) async {
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    // Reject files larger than 2MB
+    if (bytes.length > 2 * 1024 * 1024) {
+      throw Exception('File too large (max 2MB): ${file.path.split('/').last}');
+    }
+    return base64Encode(bytes);
+  }
+
   Future<void> _handleContinue() async {
     setState(() => _isLoading = true);
 
@@ -102,15 +113,36 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
         userId: auth.userId,
       );
 
+      // Build documents map from picked files
+      final documents = <String, dynamic>{};
+      if (cnicFront != null) {
+        documents['cnicFront'] = await _fileToBase64(cnicFront);
+      }
+      if (cnicBack != null) {
+        documents['cnicBack'] = await _fileToBase64(cnicBack);
+      }
+      if (certificateFile != null) {
+        documents['teachingCertificate'] = await _fileToBase64(certificateFile);
+      }
+      if (degreeFile != null) {
+        documents['degree'] = await _fileToBase64(degreeFile);
+      }
+
+      final tutorProfile = <String, dynamic>{
+        'subjects': selectedSubjects,
+        'experienceYears':
+            int.tryParse(_experienceController.text.trim()) ?? 0,
+        'qualification': _qualificationController.text.trim(),
+      };
+
+      if (documents.isNotEmpty) {
+        tutorProfile['documents'] = documents;
+      }
+
       final profileData = <String, dynamic>{
         'fullName': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'tutorProfile': {
-          'subjects': selectedSubjects,
-          'experience':
-              int.tryParse(_experienceController.text.trim()) ?? 0,
-          'qualification': _qualificationController.text.trim(),
-        },
+        'tutorProfile': tutorProfile,
       };
 
       await userService.updateProfile(profileData);
