@@ -7,7 +7,7 @@ Feature
 High
 
 ## Status
-To Do
+Done
 
 ## Summary
 Add a mock Stripe payment gateway to the existing payments flow. The backend will expose fake Stripe-like endpoints that simulate a real Stripe checkout session lifecycle (create session → redirect to mock checkout page → webhook callback → payment confirmed). No actual Stripe account or SDK is used — the entire flow is mocked server-side to behave realistically for demo purposes.

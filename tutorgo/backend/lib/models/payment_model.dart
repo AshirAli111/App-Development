@@ -7,7 +7,7 @@ class PaymentModel {
   final ObjectId? sessionInstanceId;
   final int amountPKR;
   final String status; // pending, completed, refunded
-  final String method; // cash, bank_transfer, easypaisa, jazzcash
+  final String method; // cash, bank_transfer, easypaisa, jazzcash, stripe
   final DateTime transactionDate;
   final DateTime createdAt;
 

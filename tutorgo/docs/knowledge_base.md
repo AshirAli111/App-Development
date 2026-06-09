@@ -63,7 +63,8 @@ tutorgo/
 │   │   │   ├── onboarding/
 │   │   │   │   └── onboarding_screen.dart
 │   │   │   ├── payment/
-│   │   │   │   └── payment_screen.dart
+│   │   │   │   ├── payment_screen.dart        # Payment method selection
+│   │   │   │   └── stripe_checkout_screen.dart # WebView Stripe checkout
 │   │   │   ├── rating/
 │   │   │   │   └── rating_screen.dart
 │   │   │   ├── roles/
@@ -567,13 +568,53 @@ Uses percentage-based blocks (1% of screen dimensions).
 
 ---
 
-## 16. Known Limitations & Pending Work
+## 16. Mock Stripe Payment Gateway
+
+### Architecture
+The mock Stripe gateway simulates a real Stripe Checkout Session flow without requiring a Stripe account.
+
+### Flow
+```
+1. Flutter calls POST /api/stripe/create-checkout-session
+2. Backend creates a stripe_session + payment record (status: pending)
+3. Returns { sessionId: "cs_mock_xxx", checkoutUrl: "..." }
+4. Flutter opens checkoutUrl in WebView (StripeCheckoutScreen)
+5. User sees mock card form (dark theme, Stripe-like UI)
+6. User clicks "Pay" → form POSTs to /api/stripe/confirm/:sessionId
+7. Backend marks session + payment as "completed"
+8. Flutter polls GET /api/stripe/session/:sessionId → detects "completed"
+9. Returns to app with success dialog
+```
+
+### Backend Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/stripe/create-checkout-session` | Create checkout session |
+| GET | `/api/stripe/checkout/:sessionId` | Serve mock HTML checkout page |
+| POST | `/api/stripe/confirm/:sessionId` | Confirm payment (always succeeds) |
+| GET | `/api/stripe/session/:sessionId` | Poll session status |
+
+### Collections
+- `stripe_sessions` — tracks checkout session lifecycle
+- `payments` — existing collection, now supports `method: "stripe"` with `stripeSessionId` field
+
+### Flutter Components
+- `PaymentScreen` — method selection (stripe, easypaisa, jazzcash, bank_transfer)
+- `StripeCheckoutScreen` — WebView wrapper that loads checkout URL and polls for completion
+
+### Dependencies Added
+- `webview_flutter: ^4.10.0` — renders the mock checkout page
+- `url_launcher: ^6.2.5` — utility for URL handling
+
+---
+
+## 17. Known Limitations & Pending Work
 
 | Area | Status | Notes |
 |------|--------|-------|
 | Backend Integration | Pending | All data currently dummy/local |
 | Authentication | UI Only | Login flow has no backend |
-| Payment Processing | UI Only | Payment screens are placeholders |
+| Payment Processing | Mock Stripe Implemented | Full checkout session flow with WebView |
 | Data Persistence | Minimal | Only theme pref saved locally |
 | API Key Security | Hardcoded | Needs env variable migration |
 | Session Management | None | App starts at onboarding each time |
@@ -583,7 +624,7 @@ Uses percentage-based blocks (1% of screen dimensions).
 
 ---
 
-## 17. Recommended Next Steps for Backend Integration
+## 18. Recommended Next Steps for Backend Integration
 
 1. **Firebase Setup**
    - Authentication (Email/Password, Google, Facebook)
@@ -591,10 +632,12 @@ Uses percentage-based blocks (1% of screen dimensions).
    - Firebase Storage for profile images & documents
    - Cloud Messaging for push notifications
 
-2. **Payment Gateway**
-   - Stripe or Razorpay integration
-   - Subscription management
-   - Tutor payout system
+2. **Payment Gateway** ✅ (Mock Stripe Implemented)
+   - Mock Stripe checkout session flow (create session → WebView checkout → confirm → poll status)
+   - Backend: `/api/stripe/` routes with `stripe_sessions` collection
+   - Frontend: `StripeCheckoutScreen` with WebView + polling
+   - Methods: stripe, easypaisa, jazzcash, bank_transfer, cash
+   - Always succeeds (demo mode) — swap for real Stripe SDK in production
 
 3. **Real-time Communication**
    - Agora RTC or Twilio for video/voice calls

@@ -35,6 +35,8 @@ tags:
     description: User notifications with scheduler
   - name: Payments
     description: Mock payment tracking in PKR
+  - name: Stripe
+    description: Mock Stripe payment gateway (checkout session flow)
 
 paths:
   /health:
@@ -746,6 +748,138 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  # ─────────────────────────────────────────────────
+  # MOCK STRIPE PAYMENT GATEWAY
+  # ─────────────────────────────────────────────────
+  /api/stripe/create-checkout-session:
+    post:
+      tags: [Stripe]
+      summary: Create a mock Stripe checkout session
+      description: |
+        Creates a mock checkout session and corresponding pending payment record.
+        Returns a sessionId and checkoutUrl that the client opens in a WebView.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, tutorId, amountPKR]
+              properties:
+                studentId:
+                  type: string
+                tutorId:
+                  type: string
+                amountPKR:
+                  type: integer
+                  minimum: 1
+                  example: 2000
+                sessionInstanceId:
+                  type: string
+                  nullable: true
+      responses:
+        '201':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    type: string
+                    example: cs_mock_a1b2c3d4e5f67890
+                  checkoutUrl:
+                    type: string
+                    example: http://localhost:8080/api/stripe/checkout/cs_mock_a1b2c3d4e5f67890
+                  amountPKR:
+                    type: integer
+                    example: 2000
+                  status:
+                    type: string
+                    example: pending
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/stripe/checkout/{sessionId}:
+    get:
+      tags: [Stripe]
+      summary: Get mock Stripe checkout HTML page
+      description: |
+        Serves an HTML page that looks like a card payment form.
+        If the session is already completed, shows a success page.
+        This is what the client opens in a WebView.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The Stripe checkout session ID (cs_mock_...)
+      responses:
+        '200':
+          description: HTML checkout page
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Session not found
+
+  /api/stripe/confirm/{sessionId}:
+    post:
+      tags: [Stripe]
+      summary: Confirm mock Stripe payment
+      description: |
+        Called when the user submits the mock card form.
+        Marks both the stripe session and payment record as completed.
+        Returns a success HTML page.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment confirmed, success HTML returned
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: Session not found
+
+  /api/stripe/session/{sessionId}:
+    get:
+      tags: [Stripe]
+      summary: Get checkout session status (for polling)
+      description: |
+        Returns the current status of a Stripe checkout session.
+        The Flutter app polls this endpoint to detect when payment completes.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StripeSession'
+        '404':
+          description: Session not found
+
 # ═════════════════════════════════════════════════
 # COMPONENTS
 # ═════════════════════════════════════════════════
@@ -1290,10 +1424,32 @@ components:
           enum: [pending, completed, refunded]
         method:
           type: string
-          enum: [cash, bank_transfer, easypaisa, jazzcash]
+          enum: [cash, bank_transfer, easypaisa, jazzcash, stripe]
+        stripeSessionId:
+          type: string
+          nullable: true
+          description: Only present for stripe payments
+          example: cs_mock_abc123def456
         transactionDate:
           type: string
           format: date-time
         createdAt:
           type: string
           format: date-time
+
+    StripeSession:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: cs_mock_a1b2c3d4e5f6
+        amountPKR:
+          type: integer
+          example: 2000
+        status:
+          type: string
+          enum: [pending, completed]
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true

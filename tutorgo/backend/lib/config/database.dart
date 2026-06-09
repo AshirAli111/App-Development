@@ -94,6 +94,18 @@ class Database {
     await db.collection('payments').createIndex(keys: {'tutorId': 1});
     await db.collection('payments').createIndex(keys: {'status': 1});
 
+    // Stripe sessions indexes
+    await db.collection('stripe_sessions').createIndex(
+      keys: {'sessionId': 1},
+      unique: true,
+    );
+    await db.collection('stripe_sessions').createIndex(
+      keys: {'paymentId': 1},
+    );
+    await db.collection('stripe_sessions').createIndex(
+      keys: {'studentId': 1},
+    );
+
     print('All indexes created successfully.');
   }
 }

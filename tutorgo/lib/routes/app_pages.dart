@@ -9,6 +9,7 @@ import 'package:next_step_learning/presentation/screens/student/student_language
 import 'package:next_step_learning/presentation/screens/student/student_learning_history_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_notifications_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_payment_methods_screen.dart';
+import 'package:next_step_learning/presentation/screens/payment/payment_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_privacy_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_profile_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_support_screen.dart';
@@ -136,6 +137,17 @@ class AppPages {
 
       case AppRoutes.studentPayments:
         return _page(const StudentPaymentMethodsScreen());
+
+      case AppRoutes.paymentCheckout:
+        final data = args as Map<String, dynamic>;
+        return _page(PaymentScreen(
+          studentId: data['studentId'],
+          tutorId: data['tutorId'],
+          amountPKR: data['amountPKR'],
+          sessionInstanceId: data['sessionInstanceId'],
+          baseUrl: data['baseUrl'] ?? 'http://localhost:8080',
+          token: data['token'] ?? '',
+        ));
       case AppRoutes.aiChatScreen:
         final role = settings.arguments as AiRole;
         return _page(AiChatScreen(role: role));

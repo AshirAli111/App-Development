@@ -385,4 +385,145 @@ void main() {
       expect(res['statusCode'], 200);
     });
   });
+
+  group('Mock Stripe Payment Gateway', () {
+    late String stripeSessionId;
+
+    test('POST /api/stripe/create-checkout-session creates session', () async {
+      final res = await request(
+        'POST',
+        '/api/stripe/create-checkout-session',
+        token: studentToken,
+        body: {
+          'studentId': studentId,
+          'tutorId': tutorId,
+          'amountPKR': 2000,
+        },
+      );
+
+      expect(res['statusCode'], 201);
+      expect(res['body']['sessionId'], startsWith('cs_mock_'));
+      expect(res['body']['checkoutUrl'], contains('/api/stripe/checkout/'));
+      expect(res['body']['amountPKR'], 2000);
+      expect(res['body']['status'], 'pending');
+
+      stripeSessionId = res['body']['sessionId'];
+    });
+
+    test('rejects missing required fields', () async {
+      final res = await request(
+        'POST',
+        '/api/stripe/create-checkout-session',
+        token: studentToken,
+        body: {
+          'studentId': studentId,
+        },
+      );
+
+      expect(res['statusCode'], 400);
+      expect(res['body']['error'], contains('required'));
+    });
+
+    test('rejects zero amount', () async {
+      final res = await request(
+        'POST',
+        '/api/stripe/create-checkout-session',
+        token: studentToken,
+        body: {
+          'studentId': studentId,
+          'tutorId': tutorId,
+          'amountPKR': 0,
+        },
+      );
+
+      expect(res['statusCode'], 400);
+      expect(res['body']['error'], contains('greater than 0'));
+    });
+
+    test('GET /api/stripe/checkout/:sessionId returns HTML page', () async {
+      final uri = Uri.parse('$baseUrl/api/stripe/checkout/$stripeSessionId');
+      final req = await client.getUrl(uri);
+      req.headers.set('Authorization', 'Bearer $studentToken');
+      final response = await req.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      expect(response.statusCode, 200);
+      expect(response.headers.contentType.toString(), contains('text/html'));
+      expect(body, contains('TutorGo Pay'));
+      expect(body, contains('PKR 2000'));
+    });
+
+    test('GET /api/stripe/session/:sessionId returns pending status', () async {
+      final res = await request(
+        'GET',
+        '/api/stripe/session/$stripeSessionId',
+        token: studentToken,
+      );
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['sessionId'], stripeSessionId);
+      expect(res['body']['status'], 'pending');
+      expect(res['body']['amountPKR'], 2000);
+    });
+
+    test('POST /api/stripe/confirm/:sessionId completes payment', () async {
+      final uri = Uri.parse('$baseUrl/api/stripe/confirm/$stripeSessionId');
+      final req = await client.postUrl(uri);
+      req.headers.set('Authorization', 'Bearer $studentToken');
+      final response = await req.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      expect(response.statusCode, 200);
+      expect(body, contains('Payment Successful'));
+    });
+
+    test('GET /api/stripe/session/:sessionId returns completed after confirm', () async {
+      final res = await request(
+        'GET',
+        '/api/stripe/session/$stripeSessionId',
+        token: studentToken,
+      );
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['status'], 'completed');
+      expect(res['body']['completedAt'], isNotNull);
+    });
+
+    test('GET /api/stripe/checkout/:sessionId shows success for completed session', () async {
+      final uri = Uri.parse('$baseUrl/api/stripe/checkout/$stripeSessionId');
+      final req = await client.getUrl(uri);
+      req.headers.set('Authorization', 'Bearer $studentToken');
+      final response = await req.close();
+      final body = await response.transform(utf8.decoder).join();
+
+      expect(response.statusCode, 200);
+      expect(body, contains('Payment Successful'));
+    });
+
+    test('returns 404 for non-existent session', () async {
+      final res = await request(
+        'GET',
+        '/api/stripe/session/cs_mock_nonexistent',
+        token: studentToken,
+      );
+
+      expect(res['statusCode'], 404);
+    });
+
+    test('stripe payment appears in payment history', () async {
+      final res = await request('GET', '/api/payments/', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      final payments = res['body']['payments'] as List;
+      final stripePayment = payments.firstWhere(
+        (p) => p['method'] == 'stripe',
+        orElse: () => null,
+      );
+
+      expect(stripePayment, isNotNull);
+      expect(stripePayment['amountPKR'], 2000);
+      expect(stripePayment['status'], 'completed');
+      expect(stripePayment['stripeSessionId'], stripeSessionId);
+    });
+  });
 }

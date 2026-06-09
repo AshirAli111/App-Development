@@ -49,7 +49,7 @@ class PaymentRoutes {
         return errorResponse('studentId, tutorId, amountPKR, and method are required');
       }
 
-      final validMethods = ['cash', 'bank_transfer', 'easypaisa', 'jazzcash'];
+      final validMethods = ['cash', 'bank_transfer', 'easypaisa', 'jazzcash', 'stripe'];
       if (!validMethods.contains(method)) {
         return errorResponse('method must be one of: ${validMethods.join(", ")}');
       }

@@ -49,6 +49,9 @@ class AppRoutes {
   static const contactSupport = '/contact-support';
   static const blockedStudents = '/blocked-students';
 
+  // Payment
+  static const paymentCheckout = '/payment-checkout';
+
   //Ai Chat Screen
   static const aiChatScreen = '/ai-chat-screen';
 }
