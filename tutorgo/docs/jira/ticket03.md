@@ -7,7 +7,7 @@ Feature
 High
 
 ## Status
-To Do
+Done
 
 ## Summary
 Connect the existing chat UI to the backend REST API with polling-based real-time messaging, and integrate Jitsi Meet for free video/voice calls between students and tutors. Both features must work across two physical devices for demo purposes.

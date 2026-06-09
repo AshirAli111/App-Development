@@ -5,6 +5,7 @@ import '../models/chat_model.dart';
 class ChatService {
   DbCollection get _chats => Database.instance.collection('chats');
   DbCollection get _messages => Database.instance.collection('messages');
+  DbCollection get _users => Database.instance.collection('users');
 
   Future<Map<String, dynamic>> getOrCreateChat(
     String userId1,
@@ -25,7 +26,8 @@ class ChatService {
       chat = {...newChat.toMap(), '_id': result.id};
     }
 
-    return chat;
+    // Enrich with participant info
+    return await _enrichChat(chat, userId1);
   }
 
   Future<List<Map<String, dynamic>>> getUserChats(String userId) async {
@@ -33,7 +35,42 @@ class ChatService {
     final chats = await _chats
         .find(where.eq('participants', oid).sortBy('updatedAt', descending: true))
         .toList();
-    return chats;
+
+    // Enrich each chat with the other participant's info
+    final enriched = <Map<String, dynamic>>[];
+    for (final chat in chats) {
+      enriched.add(await _enrichChat(chat, userId));
+    }
+    return enriched;
+  }
+
+  /// Adds otherUser { name, profileImage } to chat document
+  Future<Map<String, dynamic>> _enrichChat(
+    Map<String, dynamic> chat,
+    String currentUserId,
+  ) async {
+    final participants = (chat['participants'] as List)
+        .map((p) => p is ObjectId ? p : ObjectId.fromHexString(p.toString()))
+        .toList();
+
+    final otherUserId = participants.firstWhere(
+      (p) => p.oid != currentUserId,
+      orElse: () => participants.first,
+    );
+
+    final otherUser = await _users.findOne(where.eq('_id', otherUserId));
+
+    return {
+      ...chat,
+      'otherUser': otherUser != null
+          ? {
+              '_id': otherUser['_id'],
+              'name': otherUser['name'] ?? 'Unknown',
+              'profileImage': otherUser['profileImage'],
+              'role': otherUser['role'],
+            }
+          : {'name': 'Unknown'},
+    };
   }
 
   Future<Map<String, dynamic>> sendMessage({
@@ -122,5 +159,38 @@ class ChatService {
       where.eq('_id', ObjectId.fromHexString(messageId)),
       modify.set('status', status),
     );
+  }
+
+  /// Returns the most recent call_invite message in the chat that hasn't been
+  /// ended or declined (i.e., no subsequent call_ended/call_declined message).
+  Future<Map<String, dynamic>?> getActiveCall(String chatId) async {
+    final lastCallInvite = await _messages
+        .find(where
+            .eq('chatId', ObjectId.fromHexString(chatId))
+            .eq('type', 'call_invite')
+            .sortBy('createdAt', descending: true)
+            .limit(1))
+        .toList();
+
+    if (lastCallInvite.isEmpty) return null;
+
+    final invite = lastCallInvite.first;
+    final inviteTime = invite['createdAt'] as DateTime;
+
+    // Check if there's a call_ended or call_declined after this invite
+    final endedMessages = await _messages
+        .find(where
+            .eq('chatId', ObjectId.fromHexString(chatId))
+            .oneFrom('type', ['call_ended', 'call_declined'])
+            .gte('createdAt', inviteTime)
+            .limit(1))
+        .toList();
+
+    if (endedMessages.isNotEmpty) return null;
+
+    // Check if invite is older than 60 seconds (expired)
+    if (DateTime.now().difference(inviteTime).inSeconds > 60) return null;
+
+    return invite;
   }
 }

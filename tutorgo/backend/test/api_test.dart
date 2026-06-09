@@ -269,6 +269,111 @@ void main() {
       expect(res['statusCode'], 200);
       expect(res['body']['chats'], isList);
     });
+
+    test('POST /api/chats/start creates a new chat', () async {
+      final res = await request('POST', '/api/chats/start', token: studentToken, body: {
+        'otherUserId': tutorId,
+      });
+
+      expect(res['statusCode'], 201);
+      expect(res['body']['chat'], isNotNull);
+      expect(res['body']['chat']['participants'], isList);
+      expect(res['body']['chat']['otherUser'], isNotNull);
+      expect(res['body']['chat']['otherUser']['name'], isNotNull);
+
+      chatId = res['body']['chat']['_id'];
+    });
+
+    test('POST /api/chats/start returns existing chat if already exists', () async {
+      final res = await request('POST', '/api/chats/start', token: studentToken, body: {
+        'otherUserId': tutorId,
+      });
+
+      expect(res['statusCode'], 201);
+      expect(res['body']['chat']['_id'], chatId);
+    });
+
+    test('POST /api/chats/start rejects missing otherUserId', () async {
+      final res = await request('POST', '/api/chats/start', token: studentToken, body: {});
+
+      expect(res['statusCode'], 400);
+      expect(res['body']['error'], contains('otherUserId'));
+    });
+
+    test('POST /api/chats/start rejects chat with self', () async {
+      final res = await request('POST', '/api/chats/start', token: studentToken, body: {
+        'otherUserId': studentId,
+      });
+
+      expect(res['statusCode'], 400);
+      expect(res['body']['error'], contains('yourself'));
+    });
+
+    test('POST /api/chats/:id/messages sends a text message', () async {
+      final res = await request('POST', '/api/chats/$chatId/messages', token: studentToken, body: {
+        'text': 'Hello from student!',
+      });
+
+      expect(res['statusCode'], 201);
+      expect(res['body']['text'], 'Hello from student!');
+      expect(res['body']['type'], 'text');
+    });
+
+    test('GET /api/chats/:id/messages returns messages', () async {
+      final res = await request('GET', '/api/chats/$chatId/messages', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['messages'], isList);
+      expect(res['body']['messages'].length, greaterThan(0));
+    });
+
+    test('POST /api/chats/:id/messages sends call_invite', () async {
+      final res = await request('POST', '/api/chats/$chatId/messages', token: studentToken, body: {
+        'text': 'tutorgo_${chatId}_12345',
+        'type': 'call_invite',
+      });
+
+      expect(res['statusCode'], 201);
+      expect(res['body']['type'], 'call_invite');
+      expect(res['body']['text'], contains('tutorgo_'));
+    });
+
+    test('GET /api/chats/:id/active-call returns active call', () async {
+      final res = await request('GET', '/api/chats/$chatId/active-call', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['activeCall'], isNotNull);
+      expect(res['body']['activeCall']['type'], 'call_invite');
+    });
+
+    test('POST call_ended clears active call', () async {
+      await request('POST', '/api/chats/$chatId/messages', token: studentToken, body: {
+        'text': 'Call ended',
+        'type': 'call_ended',
+      });
+
+      final res = await request('GET', '/api/chats/$chatId/active-call', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['activeCall'], isNull);
+    });
+
+    test('PUT /api/chats/:id/read marks chat as read', () async {
+      final res = await request('PUT', '/api/chats/$chatId/read', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      expect(res['body']['message'], 'Marked as read');
+    });
+
+    test('GET /api/chats/ returns chat with otherUser info', () async {
+      final res = await request('GET', '/api/chats/', token: studentToken);
+
+      expect(res['statusCode'], 200);
+      final chats = res['body']['chats'] as List;
+      expect(chats.length, greaterThan(0));
+      expect(chats.first['otherUser'], isNotNull);
+      expect(chats.first['otherUser']['name'], isNotNull);
+    });
   });
 
   group('Sessions', () {

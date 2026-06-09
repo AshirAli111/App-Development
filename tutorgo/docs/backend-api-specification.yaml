@@ -471,6 +471,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
 
+  /api/chats/start:
+    post:
+      tags: [Chats]
+      summary: Start or get existing chat
+      description: Creates a new chat between the authenticated user and another user, or returns the existing chat if one already exists.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [otherUserId]
+              properties:
+                otherUserId:
+                  type: string
+                  description: The ID of the user to start a chat with
+      responses:
+        '201':
+          description: Chat created or retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat:
+                    $ref: '#/components/schemas/Chat'
+        '400':
+          description: Invalid request (missing otherUserId or chatting with self)
+
+  /api/chats/{id}/active-call:
+    get:
+      tags: [Chats]
+      summary: Get active call for a chat
+      description: Returns the most recent call_invite message that hasn't been ended or declined (within 60s window).
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '200':
+          description: Active call info (null if no active call)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  activeCall:
+                    nullable: true
+                    $ref: '#/components/schemas/Message'
+
   # ─────────────────────────────────────────────
   # AI CONVERSATIONS
   # ─────────────────────────────────────────────
@@ -1016,7 +1068,7 @@ components:
           example: "Hello, I need help with calculus"
         type:
           type: string
-          enum: [text, session_request, session_response]
+          enum: [text, session_request, session_response, call_invite, call_ended, call_declined]
           default: text
         sessionRequest:
           $ref: '#/components/schemas/SessionRequestPayload'
@@ -1298,6 +1350,20 @@ components:
           additionalProperties:
             type: integer
           description: Map of userId to unread message count
+        otherUser:
+          type: object
+          description: Info about the other participant (enriched by server)
+          properties:
+            _id:
+              type: string
+            name:
+              type: string
+            profileImage:
+              type: string
+              nullable: true
+            role:
+              type: string
+              enum: [student, tutor]
         createdAt:
           type: string
           format: date-time
@@ -1316,9 +1382,10 @@ components:
           type: string
         text:
           type: string
+          description: For call_invite messages, this is the Jitsi room name
         type:
           type: string
-          enum: [text, session_request, session_response]
+          enum: [text, session_request, session_response, call_invite, call_ended, call_declined]
         sessionRequest:
           $ref: '#/components/schemas/SessionRequestPayload'
         status:

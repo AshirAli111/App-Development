@@ -1,11 +1,73 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/presentation/screens/student/student_chats_conversation_screen.dart';
 
 import '../../../core/theme/spacing.dart';
 
-class StudentMessagesScreen extends StatelessWidget {
-  const StudentMessagesScreen({super.key});
+class StudentMessagesScreen extends StatefulWidget {
+  final String baseUrl;
+  final String token;
+  final String userId;
+
+  const StudentMessagesScreen({
+    super.key,
+    this.baseUrl = 'http://localhost:8080',
+    this.token = '',
+    this.userId = '',
+  });
+
+  @override
+  State<StudentMessagesScreen> createState() => _StudentMessagesScreenState();
+}
+
+class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
+  late final ChatService _chatService;
+  List<Map<String, dynamic>> _chats = [];
+  bool _loading = true;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _chatService = ChatService(
+      baseUrl: widget.baseUrl,
+      token: widget.token,
+      userId: widget.userId,
+    );
+    _loadChats();
+    _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _loadChats());
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadChats() async {
+    final chats = await _chatService.getChats();
+    if (mounted) {
+      setState(() {
+        _chats = chats;
+        _loading = false;
+      });
+    }
+  }
+
+  String _formatTime(String? isoTime) {
+    if (isoTime == null) return '';
+    final dt = DateTime.tryParse(isoTime);
+    if (dt == null) return '';
+    final now = DateTime.now();
+    if (dt.day == now.day && dt.month == now.month && dt.year == now.year) {
+      final hour = dt.hour > 12 ? dt.hour - 12 : (dt.hour == 0 ? 12 : dt.hour);
+      final amPm = dt.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
+    }
+    return '${dt.day}/${dt.month}/${dt.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,7 +77,6 @@ class StudentMessagesScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER
             Padding(
               padding: const EdgeInsets.all(AppSpacing.s16),
               child: Text(
@@ -23,49 +84,38 @@ class StudentMessagesScreen extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
             ),
-
-            Expanded(child: _chatList(context)),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _chats.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No conversations yet',
+                            style: Theme.of(context).textTheme.bodyLarge,
+                          ),
+                        )
+                      : _chatList(context),
+            ),
           ],
         ),
       ),
     );
   }
 
-  // ----------------------------------------------------------
-  // CHAT LIST
-  // ----------------------------------------------------------
   Widget _chatList(BuildContext context) {
-    final chats = [
-      {
-        "name": "Ayesha",
-        "message": "Don't forget tomorrow's class 😊",
-        "time": "3:24 PM",
-        "unread": 2,
-        "online": true,
-      },
-      {
-        "name": "Bilal",
-        "message": "I uploaded your assignment.",
-        "time": "1:02 PM",
-        "unread": 0,
-        "online": false,
-      },
-      {
-        "name": "Sara",
-        "message": "Check the biology notes when free.",
-        "time": "Yesterday",
-        "unread": 0,
-        "online": true,
-      },
-    ];
-
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
-      itemCount: chats.length,
+      itemCount: _chats.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (_, i) {
-        final chat = chats[i];
-        final unread = chat["unread"] as int;
+        final chat = _chats[i];
+        final otherUser = chat['otherUser'] as Map<String, dynamic>? ?? {};
+        final name = otherUser['name'] ?? 'Unknown';
+        final lastMessage = chat['lastMessage'] as Map<String, dynamic>?;
+        final unreadCount = chat['unreadCount'] as Map<String, dynamic>? ?? {};
+        final unread = unreadCount[widget.userId] ?? 0;
+        final chatId = chat['_id'] ?? '';
+        final timestamp = lastMessage?['timestamp'];
 
         return GestureDetector(
           onTap: () {
@@ -73,8 +123,12 @@ class StudentMessagesScreen extends StatelessWidget {
               context,
               MaterialPageRoute(
                 builder: (_) => StudentChatConversation(
-                  name: chat["name"].toString(),
-                  imageUrl: null,
+                  name: name,
+                  imageUrl: otherUser['profileImage'],
+                  chatId: chatId,
+                  baseUrl: widget.baseUrl,
+                  token: widget.token,
+                  userId: widget.userId,
                 ),
               ),
             );
@@ -94,54 +148,34 @@ class StudentMessagesScreen extends StatelessWidget {
             ),
             child: Row(
               children: [
-                // AVATAR + ONLINE DOT
-                Stack(
-                  children: [
-                    CircleAvatar(
-                      radius: 26,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.15),
-                      child: Icon(
-                        LucideIcons.user,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-
-                    if (chat["online"] == true)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          height: 14,
-                          width: 14,
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.secondary,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Theme.of(context).cardColor,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.15),
+                  backgroundImage: otherUser['profileImage'] != null
+                      ? NetworkImage(otherUser['profileImage'])
+                      : null,
+                  child: otherUser['profileImage'] == null
+                      ? Icon(
+                          LucideIcons.user,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
                 ),
-
                 const SizedBox(width: AppSpacing.s16),
-
-                // NAME + LAST MESSAGE
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        chat["name"].toString(),
+                        name,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        chat["message"].toString(),
+                        lastMessage?['text'] ?? 'No messages yet',
                         style: Theme.of(context).textTheme.bodyMedium,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -149,17 +183,14 @@ class StudentMessagesScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-
-                // TIME + UNREAD BADGE
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      chat["time"].toString(),
+                      _formatTime(timestamp),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 6),
-
                     if (unread > 0)
                       Container(
                         padding: const EdgeInsets.symmetric(
@@ -172,9 +203,10 @@ class StudentMessagesScreen extends StatelessWidget {
                         ),
                         child: Text(
                           unread.toString(),
-                          style: Theme.of(
-                            context,
-                          ).textTheme.bodySmall?.copyWith(color: Colors.white),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Colors.white),
                         ),
                       ),
                   ],

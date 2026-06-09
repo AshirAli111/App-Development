@@ -608,23 +608,107 @@ The mock Stripe gateway simulates a real Stripe Checkout Session flow without re
 
 ---
 
-## 17. Known Limitations & Pending Work
+## 17. Real-Time Messaging & Video/Voice Calls
+
+### Architecture
+
+#### Messaging (Polling-Based)
+- **Approach:** Flutter polls `GET /api/chats/:id/messages` every 2 seconds
+- **No WebSocket** — acceptable latency (0-2s) for demo purposes
+- **Backend:** Existing chat CRUD endpoints + new `POST /api/chats/start` endpoint
+- **Frontend:** `ChatService` HTTP client connects screens to backend
+
+#### Video/Voice Calls (Jitsi Meet)
+- **SDK:** `jitsi_meet_flutter_sdk: ^12.1.3`
+- **Server:** Free public `meet.jit.si` (no API keys, no account needed)
+- **Room naming:** `tutorgo_<chatId>_<timestamp>` (unique per call)
+- **Voice-only:** Join with `startWithVideoMuted: true`
+
+### Messaging Flow
+```
+Student opens chat list → GET /api/chats/ → display chats with otherUser info
+Student taps chat → GET /api/chats/:id/messages → display messages
+Student types + sends → POST /api/chats/:id/messages → show sent
+Timer polls every 2s → GET /api/chats/:id/messages → append new messages
+Tutor's app polls → sees new message → displays it
+```
+
+### Video Call Flow
+```
+User taps video call icon in chat
+  → Generate room: "tutorgo_<chatId>_<timestamp>"
+  → POST message { type: "call_invite", text: roomName }
+  → User joins Jitsi room (JitsiMeet.join)
+
+Other user's app polls messages → sees call_invite
+  → Show IncomingCallDialog
+  → Accepts → joins same Jitsi room
+  → Both connected with video/audio
+
+Either hangs up → Jitsi fires conferenceTerminated
+  → POST message { type: "call_ended" }
+```
+
+### Backend Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/chats/start` | Create or get existing chat between two users |
+| GET | `/api/chats/:id/active-call` | Returns active call_invite (within 60s, not ended/declined) |
+
+### Message Types
+| Type | Purpose |
+|------|---------|
+| `text` | Regular text message |
+| `session_request` | Session booking request with details |
+| `session_response` | Response to session request |
+| `call_invite` | Video/voice call initiated (text = room name) |
+| `call_ended` | Call terminated |
+| `call_declined` | Call declined by recipient |
+
+### Flutter Components
+| File | Purpose |
+|------|---------|
+| `lib/data/services/chat_service.dart` | HTTP client for chat API |
+| `lib/data/services/call_service.dart` | Jitsi Meet integration + call invite logic |
+| `lib/presentation/screens/student/student_messages_screen.dart` | Student chat list (backend data + polling) |
+| `lib/presentation/screens/student/student_chats_conversation_screen.dart` | Student conversation (real messages + calls) |
+| `lib/presentation/screens/tutor/tutor_chats_screen.dart` | Tutor chat list (backend data + polling) |
+| `lib/presentation/screens/tutor/tutor_chat_conversation_screen.dart` | Tutor conversation (real messages + calls) |
+
+### Chat Response Enrichment
+- `GET /api/chats/` now returns `otherUser: { _id, name, profileImage, role }` on each chat
+- Used by chat list screens to display the other participant's name/avatar
+
+### Platform Requirements
+| Platform | Requirement |
+|----------|-------------|
+| Android | minSdkVersion 24, camera/mic permissions |
+| iOS | platform 15.1, NSCameraUsageDescription, NSMicrophoneUsageDescription |
+| macOS | Not supported by Jitsi (demo on mobile/emulator only) |
+
+### Dependencies Added
+- `jitsi_meet_flutter_sdk: ^12.1.3` — free video/voice calls via public Jitsi servers
+
+---
+
+## 18. Known Limitations & Pending Work
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Backend Integration | Pending | All data currently dummy/local |
+| Backend Integration | Partial | Chat integrated, other screens still dummy |
 | Authentication | UI Only | Login flow has no backend |
 | Payment Processing | Mock Stripe Implemented | Full checkout session flow with WebView |
 | Data Persistence | Minimal | Only theme pref saved locally |
 | API Key Security | Hardcoded | Needs env variable migration |
 | Session Management | None | App starts at onboarding each time |
 | Database | None | No local DB (ready for Firebase/SQLite) |
-| Video/Voice Calls | UI Only | Needs Agora/Twilio integration |
+| Video/Voice Calls | Jitsi Integrated | Free calls via meet.jit.si public server |
+| Real-time Messaging | Polling-Based | 2s interval, connected to backend API |
 | Push Notifications | Not Implemented | Needs FCM setup |
 
 ---
 
-## 18. Recommended Next Steps for Backend Integration
+## 19. Recommended Next Steps for Backend Integration
 
 1. **Firebase Setup**
    - Authentication (Email/Password, Google, Facebook)
@@ -639,9 +723,10 @@ The mock Stripe gateway simulates a real Stripe Checkout Session flow without re
    - Methods: stripe, easypaisa, jazzcash, bank_transfer, cash
    - Always succeeds (demo mode) — swap for real Stripe SDK in production
 
-3. **Real-time Communication**
-   - Agora RTC or Twilio for video/voice calls
-   - WebSocket or Firestore for live messaging
+3. **Real-time Communication** ✅ (Implemented)
+   - Jitsi Meet for video/voice calls (free, no keys)
+   - Polling-based messaging connected to backend REST API
+   - IncomingCallDialog for receiving calls
 
 4. **State Management Scale-Up**
    - Consider Riverpod or BLoC for complex state

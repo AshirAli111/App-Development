@@ -106,6 +106,10 @@ class AppPages {
           StudentChatConversation(
             name: data?["name"] ?? "Unknown",
             imageUrl: data?["imageUrl"],
+            chatId: data?["chatId"] ?? '',
+            baseUrl: data?["baseUrl"] ?? 'http://localhost:8080',
+            token: data?["token"] ?? '',
+            userId: data?["userId"] ?? '',
           ),
         );
       case AppRoutes.studentProfile:
@@ -174,6 +178,10 @@ class AppPages {
           TutorChatConversation(
             name: data?["name"] ?? "Unknown",
             imageUrl: data?["imageUrl"],
+            chatId: data?["chatId"] ?? '',
+            baseUrl: data?["baseUrl"] ?? 'http://localhost:8080',
+            token: data?["token"] ?? '',
+            userId: data?["userId"] ?? '',
           ),
         );
 

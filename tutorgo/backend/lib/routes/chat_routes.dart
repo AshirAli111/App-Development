@@ -10,11 +10,40 @@ class ChatRoutes {
     final router = Router();
 
     router.get('/', _getChats);
+    router.post('/start', _startChat);
     router.get('/<id>/messages', _getMessages);
     router.post('/<id>/messages', _sendMessage);
     router.put('/<id>/read', _markAsRead);
+    router.get('/<id>/active-call', _getActiveCall);
 
     return router;
+  }
+
+  Future<Response> _startChat(Request request) async {
+    final userId = request.headers['x-user-id'];
+    if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
+
+    final body = await parseBody(request);
+    final otherUserId = body['otherUserId'] as String?;
+
+    if (otherUserId == null || otherUserId.isEmpty) {
+      return errorResponse('otherUserId is required');
+    }
+
+    if (userId == otherUserId) {
+      return errorResponse('Cannot start chat with yourself');
+    }
+
+    final chat = await _chatService.getOrCreateChat(userId, otherUserId);
+    return jsonResponse({'chat': chat}, statusCode: 201);
+  }
+
+  Future<Response> _getActiveCall(Request request, String id) async {
+    final userId = request.headers['x-user-id'];
+    if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
+
+    final activeCall = await _chatService.getActiveCall(id);
+    return jsonResponse({'activeCall': activeCall});
   }
 
   Future<Response> _getChats(Request request) async {
