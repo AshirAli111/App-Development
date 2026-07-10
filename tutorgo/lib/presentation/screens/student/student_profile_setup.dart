@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
 
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
@@ -15,9 +19,15 @@ class StudentProfileSetup extends StatefulWidget {
 
 class _StudentProfileSetupState extends State<StudentProfileSetup> {
   File? profileImage;
-
-  /// Multiple selection enabled
   List<String> selectedCourses = [];
+  bool _isLoading = false;
+
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _ageController = TextEditingController();
+  final _gradeController = TextEditingController();
+  final _addressController = TextEditingController();
 
   final List<String> courses = [
     "Mathematics",
@@ -33,6 +43,26 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
   final picker = ImagePicker();
 
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill email and name from auth
+    final auth = context.read<AuthProvider>();
+    _emailController.text = auth.email;
+    _nameController.text = auth.fullName;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _ageController.dispose();
+    _gradeController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
   Future<void> pickImage() async {
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
@@ -43,6 +73,63 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
       setState(() {
         profileImage = File(pickedFile.path);
       });
+    }
+  }
+
+  /// Encodes the picked profile image to base64 (max 2MB), or null if none.
+  Future<String?> _profileImageToBase64() async {
+    final file = profileImage;
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > 2 * 1024 * 1024) {
+      throw Exception('Image too large (max 2MB)');
+    }
+    return base64Encode(bytes);
+  }
+
+  Future<void> _handleContinue() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final auth = context.read<AuthProvider>();
+      final userService = UserService(
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+      );
+
+      final profileData = <String, dynamic>{
+        'fullName': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'studentProfile': {
+          'grade': _gradeController.text.trim(),
+          'interests': selectedCourses,
+          'age': int.tryParse(_ageController.text.trim()),
+          'address': _addressController.text.trim(),
+        },
+      };
+
+      // Persist the picked avatar (base64-encoded) so it shows in chats etc.
+      final encodedImage = await _profileImageToBase64();
+      if (encodedImage != null) {
+        profileData['profileImage'] = encodedImage;
+      }
+
+      await userService.updateProfile(profileData);
+
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.studentNavbar, (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save profile: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -61,7 +148,6 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
               children: [
                 SizedBox(height: SizeConfig.h(20)),
 
-                /// TITLE
                 FadeIn(
                   delay: 200,
                   child: Text(
@@ -81,7 +167,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
                 SizedBox(height: SizeConfig.h(30)),
 
-                /// PROFILE PHOTO
+                // Profile Photo
                 FadeIn(
                   delay: 400,
                   child: Column(
@@ -96,9 +182,8 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                             ? Icon(
                                 Icons.person_rounded,
                                 size: 55,
-                                color: Theme.of(
-                                  context,
-                                ).textTheme.bodySmall?.color,
+                                color:
+                                    Theme.of(context).textTheme.bodySmall?.color,
                               )
                             : null,
                       ),
@@ -107,11 +192,11 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                         onPressed: pickImage,
                         child: Text(
                           "Upload Photo",
-                          style: Theme.of(context).textTheme.bodyLarge
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                         ),
                       ),
                     ],
@@ -120,27 +205,25 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
                 SizedBox(height: SizeConfig.h(26)),
 
-                /// INPUTS
-                _input(context, "Full Name", 500),
-                _input(
-                  context,
-                  "Email",
-                  550,
-                  keyboard: TextInputType.emailAddress,
-                ),
-                _input(
-                  context,
-                  "Phone Number",
-                  580,
-                  keyboard: TextInputType.phone,
-                ),
-                _input(context, "Age", 600, keyboard: TextInputType.number),
-                _input(context, "Grade / Class", 650),
-                _input(context, "Address (Optional)", 700),
+                _input(context, "Full Name", 500, controller: _nameController),
+                _input(context, "Email", 550,
+                    controller: _emailController,
+                    keyboard: TextInputType.emailAddress,
+                    enabled: false),
+                _input(context, "Phone Number", 580,
+                    controller: _phoneController,
+                    keyboard: TextInputType.phone),
+                _input(context, "Age", 600,
+                    controller: _ageController,
+                    keyboard: TextInputType.number),
+                _input(context, "Grade / Class", 650,
+                    controller: _gradeController),
+                _input(context, "Address (Optional)", 700,
+                    controller: _addressController),
 
                 SizedBox(height: SizeConfig.h(30)),
 
-                /// INTEREST SELECTION
+                // Interest Selection
                 FadeIn(
                   delay: 740,
                   child: Align(
@@ -188,9 +271,10 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                             style: TextStyle(
                               color: selected
                                   ? Colors.white
-                                  : Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.color,
+                                  : Theme.of(context)
+                                      .textTheme
+                                      .bodyLarge
+                                      ?.color,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -202,29 +286,41 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
                 SizedBox(height: SizeConfig.h(40)),
 
-                /// CONTINUE BUTTON
+                // Continue Button
                 FadeIn(
                   delay: 820,
                   child: GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, AppRoutes.studentNavbar);
-                    },
+                    onTap: _isLoading ? null : _handleContinue,
                     child: Container(
                       width: double.infinity,
                       padding: EdgeInsets.symmetric(vertical: SizeConfig.h(15)),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
+                        color: _isLoading
+                            ? Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: 0.6)
+                            : Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Center(
-                        child: Text(
-                          "Continue",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                      child: Center(
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "Continue",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                       ),
                     ),
                   ),
@@ -239,21 +335,22 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     );
   }
 
-  // ------------------------------------------------------------
-  // INPUT HELPER
-  // ------------------------------------------------------------
   Widget _input(
     BuildContext context,
     String hint,
     int delay, {
+    TextEditingController? controller,
     TextInputType keyboard = TextInputType.text,
+    bool enabled = true,
   }) {
     return FadeIn(
       delay: delay,
       child: Padding(
         padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
         child: TextField(
+          controller: controller,
           keyboardType: keyboard,
+          enabled: enabled,
           decoration: InputDecoration(
             hintText: hint,
             filled: true,

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/session_service.dart';
+import 'package:next_step_learning/data/services/notification_service.dart';
+import 'package:next_step_learning/data/services/payment_service.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
 
-// THEME
 import 'package:next_step_learning/core/theme/spacing.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 
 class TutorHomeScreen extends StatefulWidget {
   const TutorHomeScreen({super.key});
@@ -12,126 +18,129 @@ class TutorHomeScreen extends StatefulWidget {
 }
 
 class _TutorHomeScreenState extends State<TutorHomeScreen> {
-  /// ACTION ITEMS
-  List<Map<String, dynamic>> actionItems = [
-    {"text": "Prepare quiz for Ayesha", "done": false},
-    {"text": "Check Bilal’s homework", "done": false},
-  ];
+  bool _isLoading = true;
+  String _fullName = '';
+  String? _profileImage;
+  List<Map<String, dynamic>> _sessions = [];
+  List<Map<String, dynamic>> _students = [];
+  List<Map<String, dynamic>> _notifications = [];
+  Map<String, dynamic>? _paymentSummary;
 
-  void _addActionItem() {
-    TextEditingController controller = TextEditingController();
-    final theme = Theme.of(context);
-
-    showDialog(
-      context: context,
-      builder: (_) {
-        return AlertDialog(
-          backgroundColor: theme.cardColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Text("Add Action Item", style: theme.textTheme.headlineMedium),
-          content: TextField(
-            controller: controller,
-            style: theme.textTheme.bodyMedium,
-            decoration: InputDecoration(
-              hintText: "Write a task...",
-              hintStyle: theme.textTheme.bodySmall,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("Cancel", style: theme.textTheme.bodyMedium),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (controller.text.trim().isNotEmpty) {
-                  setState(() {
-                    actionItems.add({
-                      "text": controller.text.trim(),
-                      "done": false,
-                    });
-                  });
-                }
-                Navigator.pop(context);
-              },
-              child: const Text("Add"),
-            ),
-          ],
-        );
-      },
-    );
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  /// REMINDERS LIST
-  final List<Map<String, dynamic>> reminders = [
-    {
-      "title": "Collect Maths Assignment",
-      "date": "Tomorrow",
-      "icon": LucideIcons.fileCheck,
-    },
-    {
-      "title": "Physics Midterm Next Week",
-      "date": "7 days left",
-      "icon": LucideIcons.flaskRound,
-    },
-    {
-      "title": "Parent Meeting for Bilal",
-      "date": "Friday",
-      "icon": LucideIcons.users,
-    },
-  ];
+  Future<void> _loadData() async {
+    final auth = context.read<AuthProvider>();
+    _fullName = auth.fullName;
+
+    final sessionService = SessionService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+    final notificationService = NotificationService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
+    final paymentService = PaymentService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+    final userService = UserService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
+
+    final sessions = await sessionService.getMySessions();
+    final notifications = await notificationService.getNotifications();
+    final summary = await paymentService.getPaymentSummary();
+    final profile = await userService.getMyProfile();
+
+    // Unique students derived from active sessions (name + avatar).
+    final studentMap = <String, Map<String, dynamic>>{};
+    for (final s in sessions) {
+      final id = s['studentId'] as String? ?? '';
+      final name = s['studentName'] as String? ?? '';
+      if (id.isNotEmpty && name.isNotEmpty && !studentMap.containsKey(id)) {
+        studentMap[id] = {'name': name, 'image': s['studentImage']};
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _sessions = sessions;
+        _students = studentMap.values.toList();
+        _notifications = notifications;
+        _paymentSummary = summary;
+        _profileImage = profile?['profileImage'] as String?;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Derive stats
+    final activeSessions =
+        _sessions.where((s) => s['status'] == 'active').length;
+    final totalEarnings = _paymentSummary?['completedPKR'] ?? 0;
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _header(context),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 120),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _header(context),
+                      const SizedBox(height: AppSpacing.s24),
+                      _highlightCards(
+                          context, activeSessions, _students.length, totalEarnings),
+                      const SizedBox(height: AppSpacing.s32),
 
-                const SizedBox(height: AppSpacing.s24),
-                _highlightCards(context),
+                      if (_students.isNotEmpty) ...[
+                        _sectionTitle(context, "My Students", LucideIcons.users),
+                        const SizedBox(height: AppSpacing.s16),
+                        _studentsGrid(context, _students),
+                        const SizedBox(height: AppSpacing.s32),
+                      ],
 
-                const SizedBox(height: AppSpacing.s32),
-                _sectionTitle(context, "My Students", LucideIcons.users),
-                const SizedBox(height: AppSpacing.s16),
-                _studentsGrid(context),
+                      if (_notifications.isNotEmpty) ...[
+                        _sectionTitle(
+                            context, "Notifications", LucideIcons.bell),
+                        const SizedBox(height: AppSpacing.s16),
+                        _notificationsList(context),
+                      ],
 
-                const SizedBox(height: AppSpacing.s32),
-                _sectionTitle(context, "Reminders", LucideIcons.bell),
-                const SizedBox(height: AppSpacing.s16),
-                _remindersList(context),
+                      if (_sessions.isEmpty && _notifications.isEmpty)
+                        _emptyState(context),
 
-                const SizedBox(height: AppSpacing.s32),
-                _sectionTitle(context, "Action Items", LucideIcons.listChecks),
-                const SizedBox(height: AppSpacing.s16),
-                _actionItemsWidget(context),
-
-                const SizedBox(height: AppSpacing.s40),
-              ],
-            ),
-          ),
-        ),
+                      const SizedBox(height: AppSpacing.s40),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }
 
-  // -------------------------------------------------------------------------
-  // SECTION TITLE
-  // -------------------------------------------------------------------------
   Widget _sectionTitle(BuildContext context, String title, IconData icon) {
     final theme = Theme.of(context);
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
       child: Row(
@@ -144,20 +153,15 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // HEADER (gradient stays same – looks good in dark too)
-  // -------------------------------------------------------------------------
   Widget _header(BuildContext context) {
     final theme = Theme.of(context);
+    final firstName =
+        _fullName.isNotEmpty ? _fullName.split(' ').first : 'Tutor';
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(
-        AppSpacing.s20,
-        AppSpacing.s32,
-        AppSpacing.s20,
-        AppSpacing.s40,
-      ),
+        AppSpacing.s20, AppSpacing.s32, AppSpacing.s20, AppSpacing.s40),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -174,88 +178,67 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white.withValues(alpha: .25),
-            child: const Icon(
-              Icons.person_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+          Builder(
+            builder: (context) {
+              final avatar = profileImageProvider(_profileImage);
+              return CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.white.withValues(alpha: .25),
+                backgroundImage: avatar,
+                child: avatar == null
+                    ? const Icon(Icons.person_rounded,
+                        color: Colors.white, size: 32)
+                    : null,
+              );
+            },
           ),
           const SizedBox(width: AppSpacing.s12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                "Hello Ali 👋",
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: Colors.white70,
-                ),
-              ),
+              Text("Hello $firstName",
+                  style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70)),
               const SizedBox(height: AppSpacing.s4),
-              Text(
-                "Welcome Back!",
-                style: theme.textTheme.headlineMedium?.copyWith(
-                  color: Colors.white,
-                ),
-              ),
+              Text("Welcome Back!",
+                  style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white)),
             ],
-          ),
-          const Spacer(),
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .25),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(LucideIcons.bell, color: Colors.white, size: 22),
           ),
         ],
       ),
     );
   }
 
-  // -------------------------------------------------------------------------
-  // HIGHLIGHT CARDS
-  // -------------------------------------------------------------------------
-  Widget _highlightCards(BuildContext context) {
+  Widget _highlightCards(
+      BuildContext context, int sessions, int students, int earnings) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
       child: Row(
         children: [
-          _highlightCard(
-            context,
-            icon: LucideIcons.brainCircuit,
-            title: "Teaching Insights",
-            value: "92%",
-            subtitle: "Performance Score",
-            color: Colors.purple,
-          ),
+          _highlightCard(context,
+              icon: LucideIcons.calendarClock,
+              title: "Sessions",
+              value: "$sessions Active",
+              subtitle: "$students Students",
+              color: Colors.green),
           const SizedBox(width: AppSpacing.s16),
-          _highlightCard(
-            context,
-            icon: LucideIcons.calendarClock,
-            title: "Today",
-            value: "3 Sessions",
-            subtitle: "2 Completed",
-            color: Colors.green,
-          ),
+          _highlightCard(context,
+              icon: LucideIcons.wallet,
+              title: "Earnings",
+              value: "PKR $earnings",
+              subtitle: "Completed",
+              color: Colors.purple),
         ],
       ),
     );
   }
 
-  Widget _highlightCard(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String value,
-    required String subtitle,
-    required Color color,
-  }) {
+  Widget _highlightCard(BuildContext context,
+      {required IconData icon,
+      required String title,
+      required String value,
+      required String subtitle,
+      required Color color}) {
     final theme = Theme.of(context);
-
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(AppSpacing.s16),
@@ -279,14 +262,10 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
               child: Icon(icon, size: 22, color: color),
             ),
             const SizedBox(height: AppSpacing.s12),
-            Text(value, style: theme.textTheme.headlineMedium),
+            Text(value, style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpacing.s4),
-            Text(
-              title,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(title,
+                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
             Text(subtitle, style: theme.textTheme.bodySmall),
           ],
         ),
@@ -294,33 +273,24 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // STUDENTS GRID
-  // -------------------------------------------------------------------------
-  Widget _studentsGrid(BuildContext context) {
+  Widget _studentsGrid(
+      BuildContext context, List<Map<String, dynamic>> students) {
     final theme = Theme.of(context);
-
-    final students = [
-      {"name": "Ayesha", "grade": "Grade 9", "progress": 0.82},
-      {"name": "Bilal", "grade": "Grade 10", "progress": 0.67},
-      {"name": "Sara", "grade": "Grade 11", "progress": 0.51},
-      {"name": "Ahmed", "grade": "Grade 8", "progress": 0.74},
-    ];
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
       child: GridView.builder(
         shrinkWrap: true,
         primary: false,
-        itemCount: students.length,
+        itemCount: students.length > 4 ? 4 : students.length,
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisExtent: 150,
+          mainAxisExtent: 100,
           crossAxisSpacing: AppSpacing.s16,
           mainAxisSpacing: AppSpacing.s16,
         ),
         itemBuilder: (_, i) {
-          final s = students[i];
+          final name = (students[i]['name'] ?? 'Student').toString();
+          final avatar = profileImageProvider(students[i]['image']);
           return Container(
             padding: const EdgeInsets.all(AppSpacing.s12),
             decoration: BoxDecoration(
@@ -338,24 +308,17 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 CircleAvatar(
-                  radius: 22,
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: .12),
-                  child: Icon(
-                    LucideIcons.user,
-                    color: theme.colorScheme.primary,
-                  ),
+                  radius: 18,
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: .12),
+                  backgroundImage: avatar,
+                  child: avatar == null
+                      ? Icon(LucideIcons.user,
+                          size: 18, color: theme.colorScheme.primary)
+                      : null,
                 ),
-                const SizedBox(height: AppSpacing.s12),
-                Text(s["name"] as String, style: theme.textTheme.titleMedium),
-                Text(s["grade"] as String, style: theme.textTheme.bodySmall),
                 const SizedBox(height: AppSpacing.s8),
-                LinearProgressIndicator(
-                  value: s["progress"] as double,
-                  backgroundColor: theme.dividerColor,
-                  color: theme.colorScheme.primary,
-                  minHeight: 6,
-                  borderRadius: BorderRadius.circular(40),
-                ),
+                Text(name.split(' ').first, style: theme.textTheme.titleMedium),
               ],
             ),
           );
@@ -364,19 +327,13 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // REMINDERS
-  // -------------------------------------------------------------------------
-  Widget _remindersList(BuildContext context) {
+  Widget _notificationsList(BuildContext context) {
     final theme = Theme.of(context);
-
     return Column(
-      children: reminders.map((r) {
+      children: _notifications.take(5).map((n) {
         return Container(
           margin: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s20,
-            vertical: AppSpacing.s8,
-          ),
+              horizontal: AppSpacing.s20, vertical: AppSpacing.s8),
           padding: const EdgeInsets.all(AppSpacing.s16),
           decoration: BoxDecoration(
             color: theme.cardColor,
@@ -394,19 +351,16 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
               CircleAvatar(
                 radius: 22,
                 backgroundColor: theme.colorScheme.primary.withValues(alpha: .15),
-                child: Icon(
-                  r["icon"],
-                  color: theme.colorScheme.primary,
-                  size: 20,
-                ),
+                child: Icon(LucideIcons.bell, color: theme.colorScheme.primary, size: 20),
               ),
               const SizedBox(width: AppSpacing.s12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(r["title"], style: theme.textTheme.titleMedium),
-                    Text(r["date"], style: theme.textTheme.bodySmall),
+                    Text(n['title'] ?? '', style: theme.textTheme.titleMedium),
+                    Text(n['message'] ?? '', style: theme.textTheme.bodySmall,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                   ],
                 ),
               ),
@@ -417,95 +371,21 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // ACTION ITEMS
-  // -------------------------------------------------------------------------
-  Widget _actionItemsWidget(BuildContext context) {
+  Widget _emptyState(BuildContext context) {
     final theme = Theme.of(context);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.s16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: theme.shadowColor.withValues(alpha: .15),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 60),
         child: Column(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text("Action Items", style: theme.textTheme.titleMedium),
-                GestureDetector(
-                  onTap: _addActionItem,
-                  child: Icon(
-                    LucideIcons.plusCircle,
-                    size: 26,
-                    color: theme.colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: AppSpacing.s16),
-
-            Column(
-              children: actionItems.map((item) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            item["done"] = !item["done"];
-                          });
-                        },
-                        child: Icon(
-                          item["done"]
-                              ? LucideIcons.checkCircle2
-                              : LucideIcons.circle,
-                          color: item["done"]
-                              ? theme.colorScheme.secondary
-                              : theme.iconTheme.color,
-                          size: 22,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.s12),
-                      Expanded(
-                        child: Text(
-                          item["text"],
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            decoration: item["done"]
-                                ? TextDecoration.lineThrough
-                                : TextDecoration.none,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            actionItems.remove(item);
-                          });
-                        },
-                        child: Icon(
-                          LucideIcons.trash2,
-                          color: theme.colorScheme.error,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
+            Icon(LucideIcons.calendarClock, size: 48,
+                color: theme.textTheme.bodySmall?.color),
+            const SizedBox(height: 16),
+            Text("No sessions yet",
+                style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text("Sessions will appear here when students book you",
+                style: theme.textTheme.bodySmall),
           ],
         ),
       ),

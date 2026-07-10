@@ -1,90 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/presentation/screens/student/tutor_profile_popup.dart';
 
 import '../../../core/theme/spacing.dart';
 
-class TutorDiscoveryScreen extends StatelessWidget {
+class TutorDiscoveryScreen extends StatefulWidget {
   const TutorDiscoveryScreen({super.key});
 
-  /// 🔹 Dummy Data (API ready)
-  static final Map<String, List<Map<String, dynamic>>> tutorsBySubject = {
-    "Mathematics": [
-      {
-        "name": "Ali Khan",
-        "subject": "Mathematics",
-        "rating": 4.9,
-        "price": 12,
-        "image": "https://i.pravatar.cc/150?img=12",
-      },
-      {
-        "name": "Sara Noor",
-        "subject": "Mathematics",
-        "rating": 4.8,
-        "price": 14,
-        "image": "https://i.pravatar.cc/150?img=47",
-      },
-      {
-        "name": "Bilal Ahmed",
-        "subject": "Mathematics",
-        "rating": 4.7,
-        "price": 10,
-        "image": "https://i.pravatar.cc/150?img=33",
-      },
-    ],
+  @override
+  State<TutorDiscoveryScreen> createState() => _TutorDiscoveryScreenState();
+}
 
-    "Physics": [
-      {
-        "name": "Ayesha Malik",
-        "subject": "Physics",
-        "rating": 4.9,
-        "price": 15,
-        "image": "https://i.pravatar.cc/150?img=48",
-      },
-      {
-        "name": "Hamza Raza",
-        "subject": "Physics",
-        "rating": 4.6,
-        "price": 11,
-        "image": "https://i.pravatar.cc/150?img=21",
-      },
-      {
-        "name": "Zain Abbas",
-        "subject": "Physics",
-        "rating": 4.5,
-        "price": 13,
-        "image": "https://i.pravatar.cc/150?img=18",
-      },
-    ],
+class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
+  List<Map<String, dynamic>> _tutors = [];
+  bool _isLoading = true;
 
-    "Computer Science": [
-      {
-        "name": "Ahmed Raza",
-        "subject": "Computer Science",
-        "rating": 5.0,
-        "price": 18,
-        "image": "https://i.pravatar.cc/150?img=5",
-      },
-      {
-        "name": "Noor Fatima",
-        "subject": "Computer Science",
-        "rating": 4.8,
-        "price": 16,
-        "image": "https://i.pravatar.cc/150?img=49",
-      },
-      {
-        "name": "Usman Tariq",
-        "subject": "Computer Science",
-        "rating": 4.6,
-        "price": 14,
-        "image": "https://i.pravatar.cc/150?img=26",
-      },
-    ],
-  };
+  @override
+  void initState() {
+    super.initState();
+    _loadTutors();
+  }
+
+  Future<void> _loadTutors() async {
+    final auth = context.read<AuthProvider>();
+    final userService = UserService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
+
+    final tutors = await userService.getTutors(limit: 50);
+
+    if (mounted) {
+      setState(() {
+        _tutors = tutors;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    // Group tutors by subject
+    final tutorsBySubject = <String, List<Map<String, dynamic>>>{};
+    for (final tutor in _tutors) {
+      final subjects = tutor['tutorProfile']?['subjects'] as List<dynamic>? ?? [];
+      final name = tutor['fullName'] ?? 'Tutor';
+      final id = tutor['id'] ?? '';
+
+      for (final subject in subjects) {
+        tutorsBySubject.putIfAbsent(subject.toString(), () => []);
+        tutorsBySubject[subject.toString()]!.add({
+          'id': id,
+          'name': name,
+          'subject': subject.toString(),
+          'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
+          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
+          'image': tutor['profileImage'],
+          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
+          'qualification': tutor['tutorProfile']?['qualification'] ?? '',
+          'bio': tutor['tutorProfile']?['bio'] ?? '',
+        });
+      }
+
+      // If no subjects, still show the tutor
+      if (subjects.isEmpty) {
+        tutorsBySubject.putIfAbsent('General', () => []);
+        tutorsBySubject['General']!.add({
+          'id': id,
+          'name': name,
+          'subject': 'General',
+          'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
+          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
+          'image': tutor['profileImage'],
+          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
+          'qualification': tutor['tutorProfile']?['qualification'] ?? '',
+          'bio': tutor['tutorProfile']?['bio'] ?? '',
+        });
+      }
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -93,22 +93,34 @@ class TutorDiscoveryScreen extends StatelessWidget {
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.s20),
-        children: tutorsBySubject.entries.map((entry) {
-          return _subjectSection(
-            context,
-            subject: entry.key,
-            tutors: entry.value,
-          );
-        }).toList(),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _tutors.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(LucideIcons.users2, size: 48,
+                          color: theme.textTheme.bodySmall?.color),
+                      const SizedBox(height: 16),
+                      Text("No tutors available yet",
+                          style: theme.textTheme.bodyLarge),
+                    ],
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(AppSpacing.s20),
+                  children: tutorsBySubject.entries.map((entry) {
+                    return _subjectSection(
+                      context,
+                      subject: entry.key,
+                      tutors: entry.value,
+                    );
+                  }).toList(),
+                ),
     );
   }
 
-  // ------------------------------------------------------------------
-  // SUBJECT SECTION
-  // ------------------------------------------------------------------
   Widget _subjectSection(
     BuildContext context, {
     required String subject,
@@ -119,7 +131,6 @@ class TutorDiscoveryScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -142,12 +153,9 @@ class TutorDiscoveryScreen extends StatelessWidget {
             ),
           ],
         ),
-
         const SizedBox(height: AppSpacing.s12),
-
-        // Horizontal Tutors
         SizedBox(
-          height: 190,
+          height: 200,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: tutors.length > 3 ? 3 : tutors.length,
@@ -161,16 +169,12 @@ class TutorDiscoveryScreen extends StatelessWidget {
             },
           ),
         ),
-
         const SizedBox(height: AppSpacing.s32),
       ],
     );
   }
 }
 
-// ====================================================================
-// TUTOR CARD (PRODUCTION READY)
-// ====================================================================
 class _TutorCard extends StatelessWidget {
   final Map<String, dynamic> tutor;
   const _TutorCard({required this.tutor});
@@ -189,78 +193,64 @@ class _TutorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
           Center(
             child: CircleAvatar(
               radius: 33,
               backgroundColor: theme.colorScheme.primary.withValues(alpha: .12),
-              backgroundImage: tutor["image"] != null
-                  ? NetworkImage(tutor["image"])
-                  : null,
-              child: tutor["image"] == null
+              backgroundImage: profileImageProvider(tutor["image"]),
+              child: profileImageProvider(tutor["image"]) == null
                   ? Icon(LucideIcons.user, color: theme.colorScheme.primary)
                   : null,
             ),
           ),
-
           const SizedBox(height: AppSpacing.s12),
-
-          // Name
           Center(
             child: Text(
-              tutor["name"],
+              tutor["name"] ?? '',
               style: theme.textTheme.titleMedium,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
           ),
-
           const SizedBox(height: 4),
-
-          // Subject
           Center(
-            child: Text(tutor["subject"], style: theme.textTheme.bodySmall),
+            child: Text(
+              tutor["subject"] ?? '',
+              style: theme.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-
           const Spacer(),
-
-          // Rating + Price
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.star, size: 14, color: Colors.amber),
+                    const SizedBox(width: 4),
+                    Text(
+                      (tutor["rating"] ?? 0.0).toString(),
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: .15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star, size: 14, color: Colors.amber),
-                        const SizedBox(width: 4),
-                        Text(
-                          tutor["rating"].toString(),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                "\$${tutor["price"]}/hr",
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+                  ],
                 ),
               ),
+              if (tutor["price"] != null && tutor["price"] != 0)
+                Text(
+                  "PKR ${tutor["price"]}/hr",
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
             ],
           ),
         ],

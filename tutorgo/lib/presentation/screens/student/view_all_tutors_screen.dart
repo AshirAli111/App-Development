@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:next_step_learning/presentation/screens/student/tutor_profile_popup.dart';
 
 import '../../../core/theme/spacing.dart';
+import '../../../core/utils/image_utils.dart';
 
 class ViewAllTutorsScreen extends StatefulWidget {
   final String subject;
@@ -338,10 +339,8 @@ class _TutorGridCard extends StatelessWidget {
                 backgroundColor: theme.colorScheme.primary.withValues(
                   alpha: 0.12,
                 ),
-                backgroundImage: tutor["image"] != null
-                    ? NetworkImage(tutor["image"])
-                    : null,
-                child: tutor["image"] == null
+                backgroundImage: profileImageProvider(tutor["image"]),
+                child: profileImageProvider(tutor["image"]) == null
                     ? Icon(
                         LucideIcons.user,
                         color: theme.colorScheme.primary,
@@ -373,7 +372,7 @@ class _TutorGridCard extends StatelessWidget {
                     ],
                   ),
                   Text(
-                    "\$${tutor["price"]}/hr",
+                    "PKR ${tutor["price"]}/hr",
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.primary,
                       fontWeight: FontWeight.w600,

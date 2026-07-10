@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
 
 import 'package:next_step_learning/core/theme/colors.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
@@ -17,14 +21,19 @@ class TutorProfileSetup extends StatefulWidget {
 
 class _TutorProfileSetupState extends State<TutorProfileSetup> {
   File? profileImage;
-
-  // Documents
   File? cnicFront;
   File? cnicBack;
   File? certificateFile;
   File? degreeFile;
 
   List<String> selectedSubjects = [];
+  bool _isLoading = false;
+
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _experienceController = TextEditingController();
+  final _qualificationController = TextEditingController();
 
   final picker = ImagePicker();
 
@@ -42,9 +51,24 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     "Machine Learning",
   ];
 
-  // ----------------------------
-  // ✔ File Picker (Modern, Works on Android 13+)
-  // ----------------------------
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthProvider>();
+    _emailController.text = auth.email;
+    _nameController.text = auth.fullName;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _experienceController.dispose();
+    _qualificationController.dispose();
+    super.dispose();
+  }
+
   Future<File?> pickFile() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
@@ -57,9 +81,6 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     return null;
   }
 
-  // ----------------------------
-  // ✔ Profile Image Picker
-  // ----------------------------
   Future pickProfileImage() async {
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
@@ -71,9 +92,83 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     }
   }
 
-  // ----------------------------
-  // ✔ Uploaded File Card (Preview)
-  // ----------------------------
+  Future<String?> _fileToBase64(File? file) async {
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    // Reject files larger than 2MB
+    if (bytes.length > 2 * 1024 * 1024) {
+      throw Exception('File too large (max 2MB): ${file.path.split('/').last}');
+    }
+    return base64Encode(bytes);
+  }
+
+  Future<void> _handleContinue() async {
+    setState(() => _isLoading = true);
+
+    try {
+      final auth = context.read<AuthProvider>();
+      final userService = UserService(
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+      );
+
+      // Build documents map from picked files
+      final documents = <String, dynamic>{};
+      if (cnicFront != null) {
+        documents['cnicFront'] = await _fileToBase64(cnicFront);
+      }
+      if (cnicBack != null) {
+        documents['cnicBack'] = await _fileToBase64(cnicBack);
+      }
+      if (certificateFile != null) {
+        documents['teachingCertificate'] = await _fileToBase64(certificateFile);
+      }
+      if (degreeFile != null) {
+        documents['degree'] = await _fileToBase64(degreeFile);
+      }
+
+      final tutorProfile = <String, dynamic>{
+        'subjects': selectedSubjects,
+        'experienceYears':
+            int.tryParse(_experienceController.text.trim()) ?? 0,
+        'qualification': _qualificationController.text.trim(),
+      };
+
+      if (documents.isNotEmpty) {
+        tutorProfile['documents'] = documents;
+      }
+
+      final profileData = <String, dynamic>{
+        'fullName': _nameController.text.trim(),
+        'phone': _phoneController.text.trim(),
+        'tutorProfile': tutorProfile,
+      };
+
+      // Persist the picked avatar (base64-encoded) so it shows in chats etc.
+      final encodedAvatar = await _fileToBase64(profileImage);
+      if (encodedAvatar != null) {
+        profileData['profileImage'] = encodedAvatar;
+      }
+
+      await userService.updateProfile(profileData);
+
+      if (!mounted) return;
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.tutorNavbar, (_) => false);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save profile: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Widget buildUploadedCard(String label, File file) {
     final isImage =
         file.path.toLowerCase().endsWith(".png") ||
@@ -87,7 +182,6 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
         color: Theme.of(context).brightness == Brightness.dark
             ? Theme.of(context).cardColor
             : AppColors.background,
-
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
@@ -96,17 +190,10 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
           isImage
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.file(
-                    file,
-                    height: 50,
-                    width: 50,
-                    fit: BoxFit.cover,
-                  ),
+                  child: Image.file(file, height: 50, width: 50, fit: BoxFit.cover),
                 )
               : const Icon(Icons.picture_as_pdf, size: 40, color: Colors.red),
-
           const SizedBox(width: AppSpacing.s12),
-
           Expanded(
             child: Text(
               "$label Uploaded",
@@ -116,16 +203,12 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
             ),
           ),
-
           const Icon(Icons.check_circle, color: AppColors.success),
         ],
       ),
     );
   }
 
-  // ----------------------------
-  // ✔ Upload Button (Themed)
-  // ----------------------------
   Widget uploadButton(String label) {
     return Container(
       width: double.infinity,
@@ -147,16 +230,12 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     );
   }
 
-  // ----------------------------
-  // ✔ MAIN UI
-  // ----------------------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).brightness == Brightness.dark
           ? Theme.of(context).scaffoldBackgroundColor
           : AppColors.background,
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
@@ -165,9 +244,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
             children: [
               const SizedBox(height: AppSpacing.s20),
 
-              Center(
-                child: Text("Tutor Profile Setup", style: AppTypography.h1),
-              ),
+              Center(child: Text("Tutor Profile Setup", style: AppTypography.h1)),
               const SizedBox(height: AppSpacing.s8),
               Center(
                 child: Text(
@@ -178,22 +255,18 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
               const SizedBox(height: AppSpacing.s32),
 
-              // --------------------------- Profile Avatar ---------------------------
+              // Profile Avatar
               Center(
                 child: Column(
                   children: [
                     CircleAvatar(
                       radius: 60,
-                      backgroundImage: profileImage != null
-                          ? FileImage(profileImage!)
-                          : null,
+                      backgroundImage:
+                          profileImage != null ? FileImage(profileImage!) : null,
                       backgroundColor: AppColors.border,
                       child: profileImage == null
-                          ? const Icon(
-                              Icons.person_rounded,
-                              size: 55,
-                              color: AppColors.textLight,
-                            )
+                          ? const Icon(Icons.person_rounded,
+                              size: 55, color: AppColors.textLight)
                           : null,
                     ),
                     TextButton(
@@ -212,36 +285,46 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
               const SizedBox(height: AppSpacing.s32),
 
-              // --------------------------- Input Fields (Themed) ---------------------------
-              TextField(decoration: InputDecoration(hintText: "Full Name")),
-              const SizedBox(height: AppSpacing.s16),
-
-              TextField(decoration: InputDecoration(hintText: "Email")),
+              // Input Fields
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(hintText: "Full Name"),
+              ),
               const SizedBox(height: AppSpacing.s16),
 
               TextField(
+                controller: _emailController,
+                enabled: false,
+                decoration: const InputDecoration(hintText: "Email"),
+              ),
+              const SizedBox(height: AppSpacing.s16),
+
+              TextField(
+                controller: _phoneController,
                 keyboardType: TextInputType.phone,
-                decoration: InputDecoration(hintText: "Phone Number"),
+                decoration: const InputDecoration(hintText: "Phone Number"),
               ),
               const SizedBox(height: AppSpacing.s16),
 
               TextField(
+                controller: _experienceController,
                 keyboardType: TextInputType.number,
-                decoration: InputDecoration(hintText: "Experience (years)"),
+                decoration: const InputDecoration(hintText: "Experience (years)"),
               ),
               const SizedBox(height: AppSpacing.s16),
 
               TextField(
-                decoration: InputDecoration(hintText: "Highest Qualification"),
+                controller: _qualificationController,
+                decoration:
+                    const InputDecoration(hintText: "Highest Qualification"),
               ),
 
               const SizedBox(height: AppSpacing.s32),
 
-              // --------------------------- Documents ---------------------------
+              // Documents
               Text("Upload Required Documents", style: AppTypography.h3),
               const SizedBox(height: AppSpacing.s16),
 
-              // CNIC FRONT
               GestureDetector(
                 onTap: () async {
                   final file = await pickFile();
@@ -249,12 +332,9 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
                 },
                 child: uploadButton("Upload CNIC Front"),
               ),
-              if (cnicFront != null)
-                buildUploadedCard("CNIC Front", cnicFront!),
-
+              if (cnicFront != null) buildUploadedCard("CNIC Front", cnicFront!),
               const SizedBox(height: AppSpacing.s16),
 
-              // CNIC BACK
               GestureDetector(
                 onTap: () async {
                   final file = await pickFile();
@@ -263,10 +343,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
                 child: uploadButton("Upload CNIC Back"),
               ),
               if (cnicBack != null) buildUploadedCard("CNIC Back", cnicBack!),
-
               const SizedBox(height: AppSpacing.s16),
 
-              // Teaching Certificate
               GestureDetector(
                 onTap: () async {
                   final file = await pickFile();
@@ -276,10 +354,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
               if (certificateFile != null)
                 buildUploadedCard("Certificate", certificateFile!),
-
               const SizedBox(height: AppSpacing.s16),
 
-              // Degree
               GestureDetector(
                 onTap: () async {
                   final file = await pickFile();
@@ -291,7 +367,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
               const SizedBox(height: AppSpacing.s32),
 
-              // --------------------------- Subject Selection ---------------------------
+              // Subject Selection
               Text("Subjects you teach", style: AppTypography.h3),
               const SizedBox(height: AppSpacing.s16),
 
@@ -310,16 +386,13 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
                     },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
+                          horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
                         color: selected
                             ? AppColors.primary
                             : Theme.of(context).brightness == Brightness.dark
-                            ? Theme.of(context).cardColor
-                            : AppColors.border,
-
+                                ? Theme.of(context).cardColor
+                                : AppColors.border,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
@@ -328,9 +401,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
                           color: selected
                               ? Colors.white
                               : Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white70
-                              : AppColors.textDark,
-
+                                  ? Colors.white70
+                                  : AppColors.textDark,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -341,23 +413,32 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
               const SizedBox(height: AppSpacing.s32),
 
-              // --------------------------- Continue Button ---------------------------
+              // Continue Button
               GestureDetector(
-                onTap: () {
-                  Navigator.pushNamed(context, AppRoutes.tutorNavbar);
-                },
+                onTap: _isLoading ? null : _handleContinue,
                 child: Container(
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: AppSpacing.s16),
                   decoration: BoxDecoration(
-                    color: AppColors.primary,
+                    color: _isLoading
+                        ? AppColors.primary.withValues(alpha: 0.6)
+                        : AppColors.primary,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Center(
-                    child: Text(
-                      "Continue",
-                      style: AppTypography.h3.copyWith(color: Colors.white),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            "Continue",
+                            style: AppTypography.h3.copyWith(color: Colors.white),
+                          ),
                   ),
                 ),
               ),

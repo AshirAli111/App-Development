@@ -1,6 +1,6 @@
 import 'package:next_step_learning/data/dummy/services/ai_service.dart';
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
 /// ROLE TYPE
 enum AiRole { student, tutor }

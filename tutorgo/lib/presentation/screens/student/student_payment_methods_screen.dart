@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/spacing.dart';
+import '../../../routes/app_routes.dart';
 
 class StudentPaymentMethodsScreen extends StatelessWidget {
   const StudentPaymentMethodsScreen({super.key});
@@ -8,9 +9,26 @@ class StudentPaymentMethodsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final methods = [
-      {"name": "Visa **** 4242"},
-      {"name": "Jazzcash"},
-      {"name": "Easypaisa"},
+      {
+        "name": "Pay with Card (Stripe)",
+        "icon": Icons.credit_card,
+        "color": const Color(0xFF635BFF),
+      },
+      {
+        "name": "Easypaisa",
+        "icon": Icons.phone_android,
+        "color": const Color(0xFF4CAF50),
+      },
+      {
+        "name": "JazzCash",
+        "icon": Icons.phone_android,
+        "color": const Color(0xFFE91E63),
+      },
+      {
+        "name": "Bank Transfer",
+        "icon": Icons.account_balance,
+        "color": const Color(0xFF2196F3),
+      },
     ];
 
     return Scaffold(
@@ -28,31 +46,63 @@ class StudentPaymentMethodsScreen extends StatelessWidget {
         itemCount: methods.length,
         separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (_, i) {
-          return Container(
-            padding: const EdgeInsets.all(AppSpacing.s16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).cardColor,
-              borderRadius: BorderRadius.circular(18),
-              boxShadow: [
-                BoxShadow(
-                  color: Theme.of(context).shadowColor.withValues(alpha: .15),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  methods[i]["name"]!,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                Icon(
-                  Icons.chevron_right,
-                  color: Theme.of(context).iconTheme.color,
-                ),
-              ],
+          final method = methods[i];
+          return GestureDetector(
+            onTap: () {
+              // Navigate to payment checkout with demo data
+              Navigator.pushNamed(
+                context,
+                AppRoutes.paymentCheckout,
+                arguments: {
+                  'studentId': 'demo_student_id',
+                  'tutorId': 'demo_tutor_id',
+                  'amountPKR': 1500,
+                  'baseUrl': 'http://localhost:8080',
+                  'token': '',
+                },
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.all(AppSpacing.s16),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(18),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        Theme.of(context).shadowColor.withValues(alpha: .15),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: (method['color'] as Color).withValues(alpha: .1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      method['icon'] as IconData,
+                      color: method['color'] as Color,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      method['name'] as String,
+                      style: Theme.of(context).textTheme.bodyLarge,
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    color: Theme.of(context).iconTheme.color,
+                  ),
+                ],
+              ),
             ),
           );
         },

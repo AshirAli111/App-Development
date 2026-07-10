@@ -1,6 +1,8 @@
 class AppRoutes {
+  static const splash = '/splash';
   static const onboarding = '/onboarding';
   static const login = '/login';
+  static const register = '/register';
   static const roleSelection = '/role-selection';
 
   static const studentSetup = '/student-setup';
@@ -48,6 +50,9 @@ class AppRoutes {
   static const helpCenter = '/help-center';
   static const contactSupport = '/contact-support';
   static const blockedStudents = '/blocked-students';
+
+  // Payment
+  static const paymentCheckout = '/payment-checkout';
 
   //Ai Chat Screen
   static const aiChatScreen = '/ai-chat-screen';
