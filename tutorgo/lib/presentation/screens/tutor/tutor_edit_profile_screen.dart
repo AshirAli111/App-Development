@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
 
+import 'package:next_step_learning/core/constants/courses.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/utils/image_utils.dart';
 
@@ -19,12 +20,15 @@ class TutorEditProfileScreen extends StatefulWidget {
 class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
   final nameCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
-  final subjectCtrl = TextEditingController();
+  final customCourseCtrl = TextEditingController();
   final bioCtrl = TextEditingController();
   final rateCtrl = TextEditingController();
   final _picker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
+
+  /// Courses this tutor teaches (fixed list + any custom ones they added).
+  final List<String> _subjects = [];
 
   /// Newly picked avatar (not yet saved).
   File? _pickedImage;
@@ -53,7 +57,9 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
         emailCtrl.text = profile['email'] ?? '';
         final subjects =
             (profile['tutorProfile']?['subjects'] as List<dynamic>?) ?? [];
-        subjectCtrl.text = subjects.join(', ');
+        _subjects
+          ..clear()
+          ..addAll(subjects.map((s) => s.toString()));
         bioCtrl.text = profile['tutorProfile']?['bio'] ?? '';
         rateCtrl.text =
             profile['tutorProfile']?['pricePerHourPKR']?.toString() ?? '';
@@ -93,17 +99,11 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
       userId: auth.userId,
     );
 
-    final subjects = subjectCtrl.text
-        .split(',')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-
     final updates = <String, dynamic>{
       'fullName': nameCtrl.text.trim(),
       'email': email,
       'tutorProfile': {
-        'subjects': subjects,
+        'subjects': _subjects,
         'bio': bioCtrl.text.trim(),
         'pricePerHourPKR': int.tryParse(rateCtrl.text.trim()) ?? 0,
       },
@@ -148,7 +148,7 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
   void dispose() {
     nameCtrl.dispose();
     emailCtrl.dispose();
-    subjectCtrl.dispose();
+    customCourseCtrl.dispose();
     bioCtrl.dispose();
     rateCtrl.dispose();
     super.dispose();
@@ -209,7 +209,7 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
                   const SizedBox(height: AppSpacing.s16),
                   _field(context, "Email", emailCtrl),
                   const SizedBox(height: AppSpacing.s16),
-                  _field(context, "Subjects (comma separated)", subjectCtrl),
+                  _coursesSection(context),
                   const SizedBox(height: AppSpacing.s16),
                   _field(context, "Rate (PKR / hour)", rateCtrl,
                       keyboardType: TextInputType.number),
@@ -242,6 +242,87 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
                 ],
               ),
             ),
+    );
+  }
+
+  void _addCustomCourse() {
+    final course = customCourseCtrl.text.trim();
+    if (course.isEmpty) return;
+    setState(() {
+      if (!_subjects.any((s) => s.toLowerCase() == course.toLowerCase())) {
+        _subjects.add(course);
+      }
+      customCourseCtrl.clear();
+    });
+  }
+
+  Widget _coursesSection(BuildContext context) {
+    final theme = Theme.of(context);
+    // Fixed list first, then any custom courses the tutor already has.
+    final allChips = <String>[
+      ...kCourses,
+      ..._subjects.where((s) => !kCourses.contains(s)),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text("Courses I Teach", style: theme.textTheme.bodyLarge),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: allChips.map((course) {
+            final selected = _subjects.contains(course);
+            return FilterChip(
+              label: Text(course),
+              selected: selected,
+              onSelected: _isSaving
+                  ? null
+                  : (val) {
+                      setState(() {
+                        if (val) {
+                          _subjects.add(course);
+                        } else {
+                          _subjects.remove(course);
+                        }
+                      });
+                    },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: customCourseCtrl,
+                enabled: !_isSaving,
+                decoration: InputDecoration(
+                  hintText: "Add a custom course",
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 12),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.dividerColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: theme.dividerColor),
+                  ),
+                ),
+                onSubmitted: (_) => _addCustomCourse(),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              onPressed: _isSaving ? null : _addCustomCourse,
+              icon: const Icon(Icons.add),
+            ),
+          ],
+        ),
+      ],
     );
   }
 

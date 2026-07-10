@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
 
+import '../../../core/constants/courses.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/image_utils.dart';
 
@@ -31,6 +32,13 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   /// Existing avatar value from the backend (URL or base64).
   String? _existingImage;
 
+  /// Courses the student is interested in (picked from the fixed list).
+  final List<String> _selectedCourses = [];
+
+  /// Courses offered to the student: the fixed list + any custom courses that
+  /// tutors currently teach (kept while at least one tutor offers them).
+  List<String> _availableCourses = List.of(kCourses);
+
   @override
   void initState() {
     super.initState();
@@ -46,12 +54,33 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
     );
 
     final profile = await userService.getMyProfile();
+    final tutors = await userService.getTutors(limit: 100);
+
+    // Collect every course tutors currently teach (includes custom ones).
+    final tutorCourses = <String>{};
+    for (final t in tutors) {
+      final subjects = (t['tutorProfile']?['subjects'] as List?) ?? [];
+      tutorCourses.addAll(subjects.map((s) => s.toString()));
+    }
+
     if (mounted && profile != null) {
+      final selected = List<String>.from(
+          (profile['studentProfile']?['selectedCourses'] as List?) ?? []);
       setState(() {
         _nameController.text = profile['fullName'] ?? '';
         _emailController.text = profile['email'] ?? '';
         _phoneController.text = profile['phone'] ?? '';
         _existingImage = profile['profileImage'] as String?;
+        _selectedCourses
+          ..clear()
+          ..addAll(selected);
+        // Fixed list + tutor (custom) courses + anything already selected.
+        _availableCourses = <String>[
+          ...kCourses,
+          ...tutorCourses.where((c) => !kCourses.contains(c)),
+          ...selected.where(
+              (c) => !kCourses.contains(c) && !tutorCourses.contains(c)),
+        ];
         _isLoading = false;
       });
     } else if (mounted) {
@@ -91,6 +120,9 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       'fullName': _nameController.text.trim(),
       'email': email,
       'phone': _phoneController.text.trim(),
+      'studentProfile': {
+        'selectedCourses': _selectedCourses,
+      },
     };
 
     // Include the newly picked avatar (base64, max 2MB).
@@ -148,7 +180,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
+          : SingleChildScrollView(
               padding: const EdgeInsets.all(AppSpacing.s16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +227,33 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
                   _inputField(context, "Email", _emailController),
                   const SizedBox(height: AppSpacing.s16),
                   _inputField(context, "Phone Number", _phoneController),
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.s24),
+                  Text("My Courses",
+                      style: Theme.of(context).textTheme.bodyLarge),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _availableCourses.map((course) {
+                      final selected = _selectedCourses.contains(course);
+                      return FilterChip(
+                        label: Text(course),
+                        selected: selected,
+                        onSelected: _isSaving
+                            ? null
+                            : (val) {
+                                setState(() {
+                                  if (val) {
+                                    _selectedCourses.add(course);
+                                  } else {
+                                    _selectedCourses.remove(course);
+                                  }
+                                });
+                              },
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: AppSpacing.s32),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

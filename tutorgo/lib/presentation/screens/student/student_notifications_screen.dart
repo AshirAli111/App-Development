@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/spacing.dart';
+import '../../../data/services/notification_prefs.dart';
 
 class StudentNotificationsScreen extends StatefulWidget {
   const StudentNotificationsScreen({super.key});
@@ -15,6 +16,23 @@ class _StudentNotificationsScreenState
   bool messages = true;
   bool reminders = true;
   bool updates = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final m = await NotificationPrefs.messagesEnabled();
+    final r = await NotificationPrefs.remindersEnabled();
+    if (mounted) {
+      setState(() {
+        messages = m;
+        reminders = r;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,13 +53,19 @@ class _StudentNotificationsScreenState
             context,
             "Messages",
             messages,
-            (v) => setState(() => messages = v),
+            (v) {
+              setState(() => messages = v);
+              NotificationPrefs.setMessagesEnabled(v);
+            },
           ),
           _toggleTile(
             context,
             "Class Reminders",
             reminders,
-            (v) => setState(() => reminders = v),
+            (v) {
+              setState(() => reminders = v);
+              NotificationPrefs.setRemindersEnabled(v);
+            },
           ),
           _toggleTile(
             context,

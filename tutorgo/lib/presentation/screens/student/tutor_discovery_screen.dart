@@ -8,6 +8,10 @@ import 'package:next_step_learning/presentation/screens/student/tutor_profile_po
 
 import '../../../core/theme/spacing.dart';
 
+// Special filter sentinels for the course chip row.
+const _kFilterMyCourses = '__my__';
+const _kFilterAll = '__all__';
+
 class TutorDiscoveryScreen extends StatefulWidget {
   const TutorDiscoveryScreen({super.key});
 
@@ -17,6 +21,8 @@ class TutorDiscoveryScreen extends StatefulWidget {
 
 class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
   List<Map<String, dynamic>> _tutors = [];
+  List<String> _studentCourses = [];
+  String _filter = _kFilterAll;
   bool _isLoading = true;
 
   @override
@@ -34,13 +40,26 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
     );
 
     final tutors = await userService.getTutors(limit: 50);
+    final profile = await userService.getMyProfile();
+    final courses = List<String>.from(
+        (profile?['studentProfile']?['selectedCourses'] as List?) ?? []);
 
     if (mounted) {
       setState(() {
         _tutors = tutors;
+        _studentCourses = courses;
+        // Default to the student's own courses when they have any.
+        _filter = courses.isNotEmpty ? _kFilterMyCourses : _kFilterAll;
         _isLoading = false;
       });
     }
+  }
+
+  /// Which subject sections to show, given the active filter.
+  bool _sectionVisible(String subject) {
+    if (_filter == _kFilterAll) return true;
+    if (_filter == _kFilterMyCourses) return _studentCourses.contains(subject);
+    return subject == _filter;
   }
 
   @override
@@ -51,40 +70,46 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
     final tutorsBySubject = <String, List<Map<String, dynamic>>>{};
     for (final tutor in _tutors) {
       final subjects = tutor['tutorProfile']?['subjects'] as List<dynamic>? ?? [];
+      final courses = subjects.map((s) => s.toString()).toList();
       final name = tutor['fullName'] ?? 'Tutor';
       final id = tutor['id'] ?? '';
 
-      for (final subject in subjects) {
-        tutorsBySubject.putIfAbsent(subject.toString(), () => []);
-        tutorsBySubject[subject.toString()]!.add({
-          'id': id,
-          'name': name,
-          'subject': subject.toString(),
-          'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
-          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
-          'image': tutor['profileImage'],
-          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
-          'qualification': tutor['tutorProfile']?['qualification'] ?? '',
-          'bio': tutor['tutorProfile']?['bio'] ?? '',
-        });
+      Map<String, dynamic> cardFor(String subject) => {
+            'id': id,
+            'name': name,
+            'subject': subject,
+            'courses': courses,
+            'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
+            'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
+            'image': tutor['profileImage'],
+            'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
+            'qualification': tutor['tutorProfile']?['qualification'] ?? '',
+            'bio': tutor['tutorProfile']?['bio'] ?? '',
+          };
+
+      for (final subject in courses) {
+        tutorsBySubject.putIfAbsent(subject, () => []);
+        tutorsBySubject[subject]!.add(cardFor(subject));
       }
 
-      // If no subjects, still show the tutor
-      if (subjects.isEmpty) {
+      // If no subjects, still show the tutor under "General"
+      if (courses.isEmpty) {
         tutorsBySubject.putIfAbsent('General', () => []);
-        tutorsBySubject['General']!.add({
-          'id': id,
-          'name': name,
-          'subject': 'General',
-          'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
-          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
-          'image': tutor['profileImage'],
-          'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
-          'qualification': tutor['tutorProfile']?['qualification'] ?? '',
-          'bio': tutor['tutorProfile']?['bio'] ?? '',
-        });
+        tutorsBySubject['General']!.add(cardFor('General'));
       }
     }
+
+    final visibleSections = tutorsBySubject.entries
+        .where((e) => _sectionVisible(e.key))
+        .toList();
+
+    // Filter chips: student's courses first, then any other course a tutor
+    // teaches (so custom courses are filterable & bookable).
+    final chipCourses = <String>[
+      ..._studentCourses,
+      ...tutorsBySubject.keys
+          .where((k) => k != 'General' && !_studentCourses.contains(k)),
+    ];
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -108,16 +133,60 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
                     ],
                   ),
                 )
-              : ListView(
-                  padding: const EdgeInsets.all(AppSpacing.s20),
-                  children: tutorsBySubject.entries.map((entry) {
-                    return _subjectSection(
-                      context,
-                      subject: entry.key,
-                      tutors: entry.value,
-                    );
-                  }).toList(),
+              : Column(
+                  children: [
+                    _filterChips(context, chipCourses),
+                    Expanded(
+                      child: visibleSections.isEmpty
+                          ? Center(
+                              child: Text(
+                                "No tutors for the selected course yet",
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                            )
+                          : ListView(
+                              padding: const EdgeInsets.all(AppSpacing.s20),
+                              children: visibleSections.map((entry) {
+                                return _subjectSection(
+                                  context,
+                                  subject: entry.key,
+                                  tutors: entry.value,
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                  ],
                 ),
+    );
+  }
+
+  Widget _filterChips(BuildContext context, List<String> courses) {
+    final chips = <MapEntry<String, String>>[
+      if (_studentCourses.isNotEmpty)
+        const MapEntry(_kFilterMyCourses, 'My Courses'),
+      const MapEntry(_kFilterAll, 'All Courses'),
+      for (final c in courses) MapEntry(c, c),
+    ];
+
+    return SizedBox(
+      height: 56,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s16),
+        itemCount: chips.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final entry = chips[i];
+          final selected = _filter == entry.key;
+          return Center(
+            child: ChoiceChip(
+              label: Text(entry.value),
+              selected: selected,
+              onSelected: (_) => setState(() => _filter = entry.key),
+            ),
+          );
+        },
+      ),
     );
   }
 

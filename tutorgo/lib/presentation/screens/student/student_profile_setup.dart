@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
 
+import '../../../core/constants/courses.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
 import '../../../routes/app_routes.dart';
@@ -29,17 +30,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
   final _gradeController = TextEditingController();
   final _addressController = TextEditingController();
 
-  final List<String> courses = [
-    "Mathematics",
-    "Science",
-    "English",
-    "Computer",
-    "Physics",
-    "Chemistry",
-    "Biology",
-    "Programming",
-    "History",
-  ];
+  final List<String> courses = kCourses;
 
   final picker = ImagePicker();
 
@@ -103,7 +94,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
         'phone': _phoneController.text.trim(),
         'studentProfile': {
           'grade': _gradeController.text.trim(),
-          'interests': selectedCourses,
+          'selectedCourses': selectedCourses,
           'age': int.tryParse(_ageController.text.trim()),
           'address': _addressController.text.trim(),
         },

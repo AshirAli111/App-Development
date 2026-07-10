@@ -23,6 +23,7 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
   String? _profileImage;
   List<Map<String, dynamic>> _sessions = [];
   List<Map<String, dynamic>> _students = [];
+  int _uniqueStudentCount = 0;
   List<Map<String, dynamic>> _notifications = [];
   Map<String, dynamic>? _paymentSummary;
 
@@ -64,20 +65,27 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     final summary = await paymentService.getPaymentSummary();
     final profile = await userService.getMyProfile();
 
-    // Unique students derived from active sessions (name + avatar).
-    final studentMap = <String, Map<String, dynamic>>{};
+    // One entry per (student, course) so a student taught two courses is listed
+    // twice — once per course. Also track the distinct student count.
+    final byStudentCourse = <String, Map<String, dynamic>>{};
+    final uniqueIds = <String>{};
     for (final s in sessions) {
       final id = s['studentId'] as String? ?? '';
       final name = s['studentName'] as String? ?? '';
-      if (id.isNotEmpty && name.isNotEmpty && !studentMap.containsKey(id)) {
-        studentMap[id] = {'name': name, 'image': s['studentImage']};
-      }
+      final subject = (s['subject'] as String?)?.trim();
+      final course = (subject == null || subject.isEmpty) ? 'General' : subject;
+      if (id.isEmpty || name.isEmpty) continue;
+      uniqueIds.add(id);
+      final key = '$id::$course';
+      byStudentCourse.putIfAbsent(
+          key, () => {'name': name, 'image': s['studentImage'], 'course': course});
     }
 
     if (mounted) {
       setState(() {
         _sessions = sessions;
-        _students = studentMap.values.toList();
+        _students = byStudentCourse.values.toList();
+        _uniqueStudentCount = uniqueIds.length;
         _notifications = notifications;
         _paymentSummary = summary;
         _profileImage = profile?['profileImage'] as String?;
@@ -109,8 +117,8 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
                     children: [
                       _header(context),
                       const SizedBox(height: AppSpacing.s24),
-                      _highlightCards(
-                          context, activeSessions, _students.length, totalEarnings),
+                      _highlightCards(context, activeSessions,
+                          _uniqueStudentCount, totalEarnings),
                       const SizedBox(height: AppSpacing.s32),
 
                       if (_students.isNotEmpty) ...[
@@ -290,6 +298,7 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
         ),
         itemBuilder: (_, i) {
           final name = (students[i]['name'] ?? 'Student').toString();
+          final course = (students[i]['course'] ?? '').toString();
           final avatar = profileImageProvider(students[i]['image']);
           return Container(
             padding: const EdgeInsets.all(AppSpacing.s12),
@@ -304,8 +313,7 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
                 ),
               ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
                 CircleAvatar(
                   radius: 18,
@@ -317,8 +325,24 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
                           size: 18, color: theme.colorScheme.primary)
                       : null,
                 ),
-                const SizedBox(height: AppSpacing.s8),
-                Text(name.split(' ').first, style: theme.textTheme.titleMedium),
+                const SizedBox(width: AppSpacing.s8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(name.split(' ').first,
+                          style: theme.textTheme.titleMedium,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      if (course.isNotEmpty)
+                        Text(course,
+                            style: theme.textTheme.bodySmall,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
               ],
             ),
           );

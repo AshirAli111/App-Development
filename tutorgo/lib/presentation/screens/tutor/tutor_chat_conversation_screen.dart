@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/data/services/call_service.dart';
+import 'package:next_step_learning/data/services/notification_poller.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/utils/image_utils.dart';
 
@@ -52,11 +53,15 @@ class _TutorChatConversationState extends State<TutorChatConversation> {
     );
     _loadMessages();
     _chatService.markAsRead(widget.chatId);
+    NotificationPoller.activeChatId = widget.chatId;
     _pollTimer = Timer.periodic(const Duration(seconds: 2), (_) => _pollMessages());
   }
 
   @override
   void dispose() {
+    if (NotificationPoller.activeChatId == widget.chatId) {
+      NotificationPoller.activeChatId = null;
+    }
     _pollTimer?.cancel();
     messageCtrl.dispose();
     _scrollController.dispose();

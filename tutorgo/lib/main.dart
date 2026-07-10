@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:next_step_learning/core/theme/theme_manager.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
+import 'core/utils/app_globals.dart';
 import 'core/utils/size_config.dart';
 import 'routes/app_pages.dart';
 import 'routes/app_routes.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  LocalNotificationService.instance.init();
   runApp(
     MultiProvider(
       providers: [
@@ -27,7 +30,8 @@ class TutorGo extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeProvider = context.watch<ThemeProvider>();
     return MaterialApp(
-      title: 'TutorGo',
+      title: 'NextStepLearning',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

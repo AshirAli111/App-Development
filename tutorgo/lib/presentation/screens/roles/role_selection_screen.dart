@@ -33,7 +33,7 @@ class RoleSelectionScreen extends StatelessWidget {
             FadeIn(
               delay: 350,
               child: Text(
-                "Select how you want to use TutorGo",
+                "Select how you want to use NextStepLearning",
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),

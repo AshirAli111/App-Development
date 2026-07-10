@@ -104,12 +104,9 @@ class _TutorScheduleScreenState extends State<TutorScheduleScreen> {
                               horizontal: AppSpacing.s20),
                           itemCount: sessions.length,
                           itemBuilder: (context, i) {
-                            final s = sessions[i];
                             return _sessionCard(
                               context,
-                              time: _formatRecurrence(s['recurrence']),
-                              subject: s['subject'] ?? 'Session',
-                              student: s['studentName'] ?? 'Student',
+                              session: sessions[i],
                               color: _dayColors[i % _dayColors.length],
                             );
                           },
@@ -193,61 +190,319 @@ class _TutorScheduleScreenState extends State<TutorScheduleScreen> {
   }
 
   Widget _sessionCard(BuildContext context,
-      {required String time,
-      required String subject,
-      required String student,
-      required Color color}) {
+      {required Map<String, dynamic> session, required Color color}) {
     final theme = Theme.of(context);
+    final time = _formatRecurrence(session['recurrence']);
+    final subject = (session['subject'] ?? 'Session').toString();
+    final student = (session['studentName'] ?? 'Student').toString();
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(context, AppRoutes.tutorScheduleDetails, arguments: {
-          "time": time,
-          "subject": subject,
-          "student": student,
-          "color": color,
-        });
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.s16),
+      padding: const EdgeInsets.all(AppSpacing.s16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: theme.shadowColor.withValues(alpha: .12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            onTap: () {
+              Navigator.pushNamed(context, AppRoutes.tutorScheduleDetails,
+                  arguments: {
+                    "time": time,
+                    "subject": subject,
+                    "student": student,
+                    "color": color,
+                  });
+            },
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 26,
+                  backgroundColor: color.withValues(alpha: .18),
+                  child: Icon(LucideIcons.bookOpen, color: color, size: 22),
+                ),
+                const SizedBox(width: AppSpacing.s16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(subject,
+                          style: AppTypography.h3.copyWith(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: theme.textTheme.bodyMedium?.color,
+                          )),
+                      const SizedBox(height: 2),
+                      Text("With $student • $time",
+                          style: AppTypography.body14.copyWith(
+                              color: theme.textTheme.bodyMedium?.color)),
+                    ],
+                  ),
+                ),
+                Icon(LucideIcons.chevronRight,
+                    color: theme.iconTheme.color, size: 22),
+              ],
+            ),
+          ),
+          const Divider(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => _rescheduleSession(session),
+                  icon: const Icon(LucideIcons.calendarClock, size: 18),
+                  label: const Text("Reschedule"),
+                ),
+              ),
+              Expanded(
+                child: TextButton.icon(
+                  onPressed: () => _cancelSession(session),
+                  style: TextButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error),
+                  icon: const Icon(LucideIcons.x, size: 18),
+                  label: const Text("Cancel"),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  SessionService _sessionServiceFor(BuildContext context) {
+    final auth = context.read<AuthProvider>();
+    return SessionService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+      role: auth.role,
+    );
+  }
+
+  Future<void> _cancelSession(Map<String, dynamic> session) async {
+    final id = (session['_id'] ?? '').toString();
+    if (id.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Cancel session?"),
+        content: Text(
+            "Cancel your ${session['subject'] ?? ''} session with ${session['studentName'] ?? 'this student'}? This removes all upcoming instances."),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text("No"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text("Yes, cancel"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await _sessionServiceFor(context).cancelSession(id);
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+        content: Text(ok ? "Session cancelled" : "Could not cancel session")));
+    if (ok) _loadSessions();
+  }
+
+  Future<void> _rescheduleSession(Map<String, dynamic> session) async {
+    final id = (session['_id'] ?? '').toString();
+    if (id.isEmpty) return;
+    final rec = (session['recurrence'] as Map?) ?? {};
+
+    final result = await showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _RescheduleSheet(recurrence: rec),
+    );
+
+    if (result == null || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final startDate = (rec['startDate'] ?? DateTime.now().toIso8601String());
+    final updated = await _sessionServiceFor(context).updateSession(id, {
+      'recurrence': {
+        'dayOfWeek': result['dayOfWeek'],
+        'startTime': result['startTime'],
+        'endTime': result['endTime'],
+        'startDate': startDate is String
+            ? startDate
+            : DateTime.now().toIso8601String(),
       },
+    });
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+        content: Text(
+            updated != null ? "Session rescheduled" : "Could not reschedule")));
+    if (updated != null) {
+      setState(() => selectedDayIndex = (result['dayOfWeek'] as int) - 1);
+      _loadSessions();
+    }
+  }
+}
+
+/// Bottom sheet to pick a new day + time for a session. Pops with
+/// {dayOfWeek, startTime, endTime} or null if cancelled.
+class _RescheduleSheet extends StatefulWidget {
+  final Map recurrence;
+  const _RescheduleSheet({required this.recurrence});
+
+  @override
+  State<_RescheduleSheet> createState() => _RescheduleSheetState();
+}
+
+class _RescheduleSheetState extends State<_RescheduleSheet> {
+  static const _days = <String, int>{
+    'Monday': 1,
+    'Tuesday': 2,
+    'Wednesday': 3,
+    'Thursday': 4,
+    'Friday': 5,
+    'Saturday': 6,
+    'Sunday': 7,
+  };
+
+  static const _times = <String>[
+    '08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00',
+    '15:00', '16:00', '17:00', '18:00', '19:00', '20:00',
+  ];
+
+  String? _day;
+  String? _startTime;
+  String? _endTime;
+
+  @override
+  void initState() {
+    super.initState();
+    final dow = widget.recurrence['dayOfWeek'];
+    _day = _days.entries
+        .firstWhere((e) => e.value == dow, orElse: () => _days.entries.first)
+        .key;
+    final start = (widget.recurrence['startTime'] ?? '').toString();
+    final end = (widget.recurrence['endTime'] ?? '').toString();
+    _startTime = _times.contains(start) ? start : null;
+    _endTime = _times.contains(end) ? end : null;
+  }
+
+  bool get _isValid => _day != null && _startTime != null && _endTime != null;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
-        margin: const EdgeInsets.only(bottom: AppSpacing.s16),
-        padding: const EdgeInsets.all(AppSpacing.s16),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: theme.shadowColor.withValues(alpha: .12),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+        padding: const EdgeInsets.all(AppSpacing.s20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: color.withValues(alpha: .18),
-              child: Icon(LucideIcons.bookOpen, color: color, size: 22),
-            ),
-            const SizedBox(width: AppSpacing.s16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(subject,
-                      style: AppTypography.h3.copyWith(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                        color: theme.textTheme.bodyMedium?.color,
-                      )),
-                  const SizedBox(height: 2),
-                  Text("With $student",
-                      style: AppTypography.body14.copyWith(
-                          color: theme.textTheme.bodyMedium?.color)),
-                ],
+            Center(
+              child: Container(
+                height: 5,
+                width: 60,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: theme.dividerColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
             ),
-            Icon(LucideIcons.chevronRight, color: theme.iconTheme.color, size: 22),
+            Text("Reschedule Session", style: theme.textTheme.headlineMedium),
+            const SizedBox(height: 20),
+            DropdownButtonFormField<String>(
+              initialValue: _day,
+              decoration: const InputDecoration(labelText: 'Day of week'),
+              items: _days.keys
+                  .map((d) => DropdownMenuItem(value: d, child: Text(d)))
+                  .toList(),
+              onChanged: (val) => setState(() => _day = val),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _startTime,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Start'),
+                    items: _times
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) => setState(() => _startTime = val),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _endTime,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'End'),
+                    items: _times
+                        .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (val) => setState(() => _endTime = val),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                onPressed: _isValid
+                    ? () {
+                        if (_times.indexOf(_endTime!) <=
+                            _times.indexOf(_startTime!)) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('End time must be after start time')),
+                          );
+                          return;
+                        }
+                        Navigator.pop(context, {
+                          'dayOfWeek': _days[_day],
+                          'startTime': _startTime,
+                          'endTime': _endTime,
+                        });
+                      }
+                    : null,
+                child: const Text("Confirm"),
+              ),
+            ),
           ],
         ),
       ),

@@ -11,7 +11,12 @@ import '../../../core/theme/spacing.dart';
 class BookSessionSheet extends StatefulWidget {
   final String tutorId;
   final String tutorName;
+
+  /// The course tapped in discovery (used as the default selection).
   final String subject;
+
+  /// All courses this tutor teaches; the student picks one for the booking.
+  final List<String> courses;
   final int pricePerSession;
 
   const BookSessionSheet({
@@ -19,6 +24,7 @@ class BookSessionSheet extends StatefulWidget {
     required this.tutorId,
     required this.tutorName,
     required this.subject,
+    this.courses = const [],
     this.pricePerSession = 0,
   });
 
@@ -56,7 +62,20 @@ class _BookSessionSheetState extends State<BookSessionSheet> {
   String? _day;
   String? _startTime;
   String? _endTime;
+  late String _course;
   bool _submitting = false;
+
+  /// Course options: the tutor's courses, or the tapped subject as a fallback.
+  List<String> get _courseOptions =>
+      widget.courses.isNotEmpty ? widget.courses : [widget.subject];
+
+  @override
+  void initState() {
+    super.initState();
+    _course = _courseOptions.contains(widget.subject)
+        ? widget.subject
+        : _courseOptions.first;
+  }
 
   bool get _isValid =>
       _day != null && _startTime != null && _endTime != null && !_submitting;
@@ -88,7 +107,7 @@ class _BookSessionSheetState extends State<BookSessionSheet> {
     final result = await sessionService.createSession({
       'studentId': auth.userId,
       'tutorId': widget.tutorId,
-      'subject': widget.subject,
+      'subject': _course,
       'recurrence': {
         'dayOfWeek': _days[_day],
         'startTime': _startTime,
@@ -143,10 +162,24 @@ class _BookSessionSheetState extends State<BookSessionSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              '${widget.subject} with ${widget.tutorName}',
+              'with ${widget.tutorName}',
               style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
+
+            /// COURSE
+            DropdownButtonFormField<String>(
+              initialValue: _course,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Course'),
+              items: _courseOptions
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                  .toList(),
+              onChanged: _submitting
+                  ? null
+                  : (val) => setState(() => _course = val ?? _course),
+            ),
+            const SizedBox(height: 14),
 
             /// DAY
             DropdownButtonFormField<String>(
