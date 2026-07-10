@@ -8,6 +8,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/theme/spacing.dart';
+import '../../../core/utils/image_utils.dart';
 import '../../../routes/app_routes.dart';
 import '../aichat/ai_chat_screen.dart';
 
@@ -84,12 +85,16 @@ class _StudentDashboardState extends State<StudentDashboard> {
     final activeSessions =
         _sessions.where((s) => s['status'] == 'active').toList();
 
-    // Extract unique tutor names from sessions
-    final tutorNames = <String>{};
+    // Extract unique tutors (name + avatar) from sessions
+    final tutorsMap = <String, Map<String, dynamic>>{};
     for (final s in _sessions) {
       final tutorName = s['tutorName'] as String? ?? '';
-      if (tutorName.isNotEmpty) tutorNames.add(tutorName);
+      final tutorId = s['tutorId'] as String? ?? tutorName;
+      if (tutorName.isNotEmpty && !tutorsMap.containsKey(tutorId)) {
+        tutorsMap[tutorId] = {'name': tutorName, 'image': s['tutorImage']};
+      }
     }
+    final tutors = tutorsMap.values.toList();
 
     return Scaffold(
       backgroundColor: bg,
@@ -101,9 +106,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _header(context, firstName, textPrimary, textSecondary),
+                    _header(context, firstName, textPrimary, textSecondary,
+                        _profile?['profileImage'] as String?),
                     const SizedBox(height: AppSpacing.s20),
-                    _statsRow(context, totalSessions, tutorNames.length),
+                    _statsRow(context, totalSessions, tutors.length),
                     const SizedBox(height: AppSpacing.s28),
 
                     if (activeSessions.isNotEmpty) ...[
@@ -117,13 +123,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       const SizedBox(height: AppSpacing.s28),
                     ],
 
-                    if (tutorNames.isNotEmpty) ...[
+                    if (tutors.isNotEmpty) ...[
                       Text(
                         "Your Tutors",
                         style: AppTypography.h3.copyWith(color: textPrimary),
                       ),
                       const SizedBox(height: AppSpacing.s12),
-                      _yourTutors(context, tutorNames.toList(), textPrimary),
+                      _yourTutors(context, tutors, textPrimary),
                     ],
 
                     if (_sessions.isEmpty)
@@ -151,7 +157,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   Widget _header(BuildContext context, String name, Color textPrimary,
-      Color textSecondary) {
+      Color textSecondary, String? image) {
+    final avatar = profileImageProvider(image);
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -173,10 +180,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
           radius: 22,
           backgroundColor:
               Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-          child: Icon(
-            LucideIcons.user,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+          backgroundImage: avatar,
+          child: avatar == null
+              ? Icon(
+                  LucideIcons.user,
+                  color: Theme.of(context).colorScheme.primary,
+                )
+              : null,
         ),
       ],
     );
@@ -255,7 +265,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 ),
               ),
               Text(
-                s['recurrence'] ?? '',
+                _formatRecurrence(s['recurrence']),
                 style: AppTypography.body12.copyWith(color: textSecondary),
               ),
             ],
@@ -265,8 +275,21 @@ class _StudentDashboardState extends State<StudentDashboard> {
     );
   }
 
-  Widget _yourTutors(
-      BuildContext context, List<String> tutors, Color textPrimary) {
+  /// Formats a session recurrence map (e.g. {dayOfWeek, startTime, endTime})
+  /// into a short readable label like "Mon 14:00–15:00".
+  String _formatRecurrence(dynamic rec) {
+    if (rec is! Map) return '';
+    const days = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dow = rec['dayOfWeek'];
+    final day = (dow is int && dow >= 1 && dow <= 7) ? days[dow] : '';
+    final start = (rec['startTime'] ?? '').toString();
+    final end = (rec['endTime'] ?? '').toString();
+    final time = end.isNotEmpty ? '$start–$end' : start;
+    return '$day $time'.trim();
+  }
+
+  Widget _yourTutors(BuildContext context,
+      List<Map<String, dynamic>> tutors, Color textPrimary) {
     return SizedBox(
       height: 70,
       child: ListView.separated(
@@ -274,18 +297,23 @@ class _StudentDashboardState extends State<StudentDashboard> {
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemCount: tutors.length,
         itemBuilder: (_, i) {
+          final name = (tutors[i]['name'] ?? 'Tutor').toString();
+          final avatar = profileImageProvider(tutors[i]['image']);
           return Column(
             children: [
               CircleAvatar(
                 radius: 20,
                 backgroundColor:
                     Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
-                child: Icon(LucideIcons.user,
-                    color: Theme.of(context).colorScheme.primary),
+                backgroundImage: avatar,
+                child: avatar == null
+                    ? Icon(LucideIcons.user,
+                        color: Theme.of(context).colorScheme.primary)
+                    : null,
               ),
               const SizedBox(height: 6),
               Text(
-                tutors[i].split(' ').first,
+                name.split(' ').first,
                 style: AppTypography.body12.copyWith(color: textPrimary),
               ),
             ],

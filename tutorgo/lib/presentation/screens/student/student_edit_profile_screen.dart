@@ -1,9 +1,13 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
 
 import '../../../core/theme/spacing.dart';
+import '../../../core/utils/image_utils.dart';
 
 class StudentEditProfileScreen extends StatefulWidget {
   const StudentEditProfileScreen({super.key});
@@ -17,8 +21,15 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _picker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
+
+  /// Newly picked avatar (not yet saved).
+  File? _pickedImage;
+
+  /// Existing avatar value from the backend (URL or base64).
+  String? _existingImage;
 
   @override
   void initState() {
@@ -40,6 +51,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
         _nameController.text = profile['fullName'] ?? '';
         _emailController.text = profile['email'] ?? '';
         _phoneController.text = profile['phone'] ?? '';
+        _existingImage = profile['profileImage'] as String?;
         _isLoading = false;
       });
     } else if (mounted) {
@@ -47,7 +59,25 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
     }
   }
 
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
+    if (picked != null) {
+      setState(() => _pickedImage = File(picked.path));
+    }
+  }
+
   Future<void> _saveProfile() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final auth = context.read<AuthProvider>();
@@ -57,10 +87,28 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       userId: auth.userId,
     );
 
-    final result = await userService.updateProfile({
+    final updates = <String, dynamic>{
       'fullName': _nameController.text.trim(),
+      'email': email,
       'phone': _phoneController.text.trim(),
-    });
+    };
+
+    // Include the newly picked avatar (base64, max 2MB).
+    if (_pickedImage != null) {
+      final bytes = await _pickedImage!.readAsBytes();
+      if (bytes.length > 2 * 1024 * 1024) {
+        if (mounted) {
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Image too large (max 2MB)')),
+          );
+        }
+        return;
+      }
+      updates['profileImage'] = base64Encode(bytes);
+    }
+
+    final result = await userService.updateProfile(updates);
 
     if (mounted) {
       setState(() => _isSaving = false);
@@ -106,21 +154,45 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Center(
-                    child: CircleAvatar(
-                      radius: 48,
-                      backgroundColor: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withValues(alpha: .12),
-                      child: Icon(Icons.person, size: 52,
-                          color: Theme.of(context).colorScheme.primary),
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 48,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: .12),
+                          backgroundImage: _pickedImage != null
+                              ? FileImage(_pickedImage!)
+                              : profileImageProvider(_existingImage),
+                          child: (_pickedImage == null &&
+                                  profileImageProvider(_existingImage) == null)
+                              ? Icon(Icons.person,
+                                  size: 52,
+                                  color: Theme.of(context).colorScheme.primary)
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _isSaving ? null : _pickImage,
+                            child: CircleAvatar(
+                              radius: 16,
+                              backgroundColor:
+                                  Theme.of(context).colorScheme.primary,
+                              child: const Icon(Icons.camera_alt,
+                                  size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: AppSpacing.s24),
                   _inputField(context, "Full Name", _nameController),
                   const SizedBox(height: AppSpacing.s16),
-                  _inputField(context, "Email", _emailController,
-                      enabled: false),
+                  _inputField(context, "Email", _emailController),
                   const SizedBox(height: AppSpacing.s16),
                   _inputField(context, "Phone Number", _phoneController),
                   const Spacer(),

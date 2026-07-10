@@ -71,11 +71,20 @@ class NotificationService {
     );
   }
 
-  /// Starts the notification scheduler that creates session reminders
+  /// Starts the notification scheduler that creates session reminders.
+  /// The callback is fully guarded: a transient DB error (e.g. Atlas idle
+  /// disconnect) must never bubble out of the Timer and crash the server.
   void startScheduler() {
     _schedulerTimer = Timer.periodic(
       const Duration(minutes: 1),
-      (_) => _processScheduledReminders(),
+      (_) async {
+        try {
+          await Database.ensureConnected();
+          await _processScheduledReminders();
+        } catch (e) {
+          print('Notification scheduler tick skipped: $e');
+        }
+      },
     );
     print('Notification scheduler started (runs every 1 minute)');
   }

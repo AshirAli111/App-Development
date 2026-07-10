@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
@@ -99,6 +100,7 @@ class _TutorChatsScreenState extends State<TutorChatsScreen> {
                         chat['otherUser'] as Map<String, dynamic>? ?? {};
                     final name = otherUser['name'] ?? 'Unknown';
                     final profileImage = otherUser['profileImage'];
+                    final avatar = profileImageProvider(profileImage);
                     final lastMessage =
                         chat['lastMessage'] as Map<String, dynamic>?;
                     final unreadCount =
@@ -148,10 +150,8 @@ class _TutorChatsScreenState extends State<TutorChatsScreen> {
                               radius: 26,
                               backgroundColor: theme.colorScheme.primary
                                   .withValues(alpha: 0.15),
-                              backgroundImage: profileImage != null
-                                  ? NetworkImage(profileImage)
-                                  : null,
-                              child: profileImage == null
+                              backgroundImage: avatar,
+                              child: avatar == null
                                   ? Icon(
                                       LucideIcons.user,
                                       color: theme.colorScheme.primary,

@@ -4,6 +4,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/data/services/call_service.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 
 class TutorChatConversation extends StatefulWidget {
   final String name;
@@ -175,6 +176,7 @@ class _TutorChatConversationState extends State<TutorChatConversation> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final avatar = profileImageProvider(widget.imageUrl);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -185,9 +187,11 @@ class _TutorChatConversationState extends State<TutorChatConversation> {
         title: Row(
           children: [
             CircleAvatar(
-              backgroundImage: NetworkImage(
-                widget.imageUrl ?? "https://i.pravatar.cc/150?img=10",
-              ),
+              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.15),
+              backgroundImage: avatar,
+              child: avatar == null
+                  ? Icon(LucideIcons.user, color: theme.colorScheme.primary)
+                  : null,
             ),
             const SizedBox(width: AppSpacing.s12),
             Text(widget.name, style: theme.textTheme.titleMedium),

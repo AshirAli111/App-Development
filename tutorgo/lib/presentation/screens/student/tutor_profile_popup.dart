@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/chat_service.dart';
 
 import '../../../core/theme/spacing.dart';
-import '../../screens/tutor/tutor_chat_conversation_screen.dart';
+import '../../../core/utils/image_utils.dart';
+import 'student_chats_conversation_screen.dart';
+import 'book_session_sheet.dart';
 
 void showTutorProfilePopup(BuildContext context, Map data) {
   showModalBottomSheet(
@@ -37,16 +43,24 @@ void showTutorProfilePopup(BuildContext context, Map data) {
                 const SizedBox(height: AppSpacing.s20),
 
                 Center(
-                  child: CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Theme.of(
-                      context,
-                    ).colorScheme.primary.withValues(alpha: 0.15),
-                    child: Icon(
-                      LucideIcons.user,
-                      size: 40,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                  child: Builder(
+                    builder: (context) {
+                      final avatar = profileImageProvider(data["image"]);
+                      return CircleAvatar(
+                        radius: 40,
+                        backgroundColor: Theme.of(
+                          context,
+                        ).colorScheme.primary.withValues(alpha: 0.15),
+                        backgroundImage: avatar,
+                        child: avatar == null
+                            ? Icon(
+                                LucideIcons.user,
+                                size: 40,
+                                color: Theme.of(context).colorScheme.primary,
+                              )
+                            : null,
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(height: AppSpacing.s16),
@@ -76,7 +90,7 @@ void showTutorProfilePopup(BuildContext context, Map data) {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      "• \$${data["price"]}/hr",
+                      "• PKR ${data["price"]}/hr",
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -90,25 +104,33 @@ void showTutorProfilePopup(BuildContext context, Map data) {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "Experienced teacher with 4+ years helping students excel.",
+                  (data["bio"] ?? '').toString().trim().isNotEmpty
+                      ? data["bio"].toString()
+                      : "No bio provided yet.",
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
 
                 const SizedBox(height: AppSpacing.s24),
 
+                OutlinedButton.icon(
+                  onPressed: () => _bookSession(context, data),
+                  icon: const Icon(LucideIcons.calendarPlus, size: 18),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
+                  label: const Text("Book Session"),
+                ),
+                const SizedBox(height: AppSpacing.s12),
+
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => TutorChatConversation(
-                          name: data["name"],
-                          imageUrl: null,
-                        ),
-                      ),
-                    );
-                  },
+                  onPressed: () => _startChat(context, data),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).colorScheme.primary,
                     foregroundColor: Colors.white,
@@ -126,4 +148,92 @@ void showTutorProfilePopup(BuildContext context, Map data) {
       );
     },
   );
+}
+
+/// Starts (or reuses) a chat with the tutor and opens the conversation.
+Future<void> _startChat(BuildContext context, Map data) async {
+  final auth = context.read<AuthProvider>();
+  final navigator = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+
+  final tutorId = (data["id"] ?? '').toString();
+  if (tutorId.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('This tutor is unavailable for chat.')),
+    );
+    return;
+  }
+
+  // Close the popup first.
+  navigator.pop();
+
+  final chatService = ChatService(
+    baseUrl: auth.baseUrl,
+    token: auth.accessToken,
+    userId: auth.userId,
+  );
+
+  final chat = await chatService.startChat(tutorId);
+  final chatId = (chat?['_id'] ?? '').toString();
+
+  if (chatId.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Could not start the chat. Try again.')),
+    );
+    return;
+  }
+
+  navigator.push(
+    MaterialPageRoute(
+      builder: (_) => StudentChatConversation(
+        name: (data["name"] ?? 'Tutor').toString(),
+        imageUrl: data["image"] as String?,
+        chatId: chatId,
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+      ),
+    ),
+  );
+}
+
+/// Opens the booking sheet and confirms a session with the tutor.
+Future<void> _bookSession(BuildContext context, Map data) async {
+  final navigator = Navigator.of(context);
+  final messenger = ScaffoldMessenger.of(context);
+
+  final tutorId = (data["id"] ?? '').toString();
+  if (tutorId.isEmpty) {
+    messenger.showSnackBar(
+      const SnackBar(content: Text('This tutor is unavailable for booking.')),
+    );
+    return;
+  }
+
+  final priceRaw = data["price"];
+  final price = priceRaw is num
+      ? priceRaw.toInt()
+      : int.tryParse(priceRaw?.toString() ?? '') ?? 0;
+
+  final booked = await showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Theme.of(context).cardColor,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (_) => BookSessionSheet(
+      tutorId: tutorId,
+      tutorName: (data["name"] ?? 'Tutor').toString(),
+      subject: (data["subject"] ?? 'General').toString(),
+      pricePerSession: price,
+    ),
+  );
+
+  if (booked == true) {
+    navigator.pop(); // close the profile popup
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Session booked! See it in Learning History.')),
+    );
+  }
 }

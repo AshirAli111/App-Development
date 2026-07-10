@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/data/services/call_service.dart';
 import 'package:next_step_learning/presentation/screens/student/request_bottomsheet.dart';
@@ -197,6 +198,7 @@ class _StudentChatConversationState extends State<StudentChatConversation> {
 
   @override
   Widget build(BuildContext context) {
+    final avatar = profileImageProvider(widget.imageUrl);
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -206,9 +208,13 @@ class _StudentChatConversationState extends State<StudentChatConversation> {
         title: Row(
           children: [
             CircleAvatar(
-              backgroundImage: NetworkImage(
-                widget.imageUrl ?? "https://i.pravatar.cc/150?img=10",
-              ),
+              backgroundColor:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+              backgroundImage: avatar,
+              child: avatar == null
+                  ? Icon(LucideIcons.user,
+                      color: Theme.of(context).colorScheme.primary)
+                  : null,
             ),
             const SizedBox(width: AppSpacing.s12),
             Text(widget.name, style: Theme.of(context).textTheme.titleLarge),

@@ -65,7 +65,8 @@ class ChatService {
       'otherUser': otherUser != null
           ? {
               '_id': otherUser['_id'],
-              'name': otherUser['name'] ?? 'Unknown',
+              // User documents store the display name under `fullName`.
+              'name': otherUser['fullName'] ?? otherUser['name'] ?? 'Unknown',
               'profileImage': otherUser['profileImage'],
               'role': otherUser['role'],
             }

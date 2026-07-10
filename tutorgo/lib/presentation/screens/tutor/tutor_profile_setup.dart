@@ -145,6 +145,12 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
         'tutorProfile': tutorProfile,
       };
 
+      // Persist the picked avatar (base64-encoded) so it shows in chats etc.
+      final encodedAvatar = await _fileToBase64(profileImage);
+      if (encodedAvatar != null) {
+        profileData['profileImage'] = encodedAvatar;
+      }
+
       await userService.updateProfile(profileData);
 
       if (!mounted) return;

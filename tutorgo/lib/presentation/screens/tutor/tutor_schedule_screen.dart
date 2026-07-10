@@ -57,19 +57,28 @@ class _TutorScheduleScreenState extends State<TutorScheduleScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _getSessionsForDay(String day) {
-    // Filter sessions by recurrence day
+  List<Map<String, dynamic>> _getSessionsForDay(int dayIndex) {
+    // recurrence.dayOfWeek is 1=Mon .. 7=Sun; dayIndex is 0=Mon .. 6=Sun.
+    final targetDayOfWeek = dayIndex + 1;
     return _sessions.where((s) {
-      final recurrence = (s['recurrence'] as String?)?.toLowerCase() ?? '';
-      return recurrence.startsWith(day.toLowerCase());
+      final rec = s['recurrence'];
+      if (rec is! Map) return false;
+      return rec['dayOfWeek'] == targetDayOfWeek;
     }).toList();
+  }
+
+  /// Formats a recurrence map into a "HH:mm–HH:mm" time label.
+  String _formatRecurrence(dynamic rec) {
+    if (rec is! Map) return '';
+    final start = (rec['startTime'] ?? '').toString();
+    final end = (rec['endTime'] ?? '').toString();
+    return end.isNotEmpty ? '$start–$end' : start;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final selectedDay = days[selectedDayIndex];
-    final sessions = _getSessionsForDay(selectedDay);
+    final sessions = _getSessionsForDay(selectedDayIndex);
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -98,7 +107,7 @@ class _TutorScheduleScreenState extends State<TutorScheduleScreen> {
                             final s = sessions[i];
                             return _sessionCard(
                               context,
-                              time: s['recurrence'] ?? '',
+                              time: _formatRecurrence(s['recurrence']),
                               subject: s['subject'] ?? 'Session',
                               student: s['studentName'] ?? 'Student',
                               color: _dayColors[i % _dayColors.length],

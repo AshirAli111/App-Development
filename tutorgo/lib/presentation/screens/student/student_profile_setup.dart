@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -75,6 +76,17 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     }
   }
 
+  /// Encodes the picked profile image to base64 (max 2MB), or null if none.
+  Future<String?> _profileImageToBase64() async {
+    final file = profileImage;
+    if (file == null) return null;
+    final bytes = await file.readAsBytes();
+    if (bytes.length > 2 * 1024 * 1024) {
+      throw Exception('Image too large (max 2MB)');
+    }
+    return base64Encode(bytes);
+  }
+
   Future<void> _handleContinue() async {
     setState(() => _isLoading = true);
 
@@ -96,6 +108,12 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
           'address': _addressController.text.trim(),
         },
       };
+
+      // Persist the picked avatar (base64-encoded) so it shows in chats etc.
+      final encodedImage = await _profileImageToBase64();
+      if (encodedImage != null) {
+        profileData['profileImage'] = encodedImage;
+      }
 
       await userService.updateProfile(profileData);
 

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/theme_manager.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
 import 'package:next_step_learning/data/services/session_service.dart';
@@ -85,7 +86,8 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: AppSpacing.s24),
-                    _profileHeader(context, fullName, grade),
+                    _profileHeader(context, fullName, grade,
+                        _profile?['profileImage'] as String?),
                     const SizedBox(height: AppSpacing.s24),
                     _statsRow(context),
                     const SizedBox(height: AppSpacing.s32),
@@ -141,7 +143,9 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
     );
   }
 
-  Widget _profileHeader(BuildContext context, String name, String grade) {
+  Widget _profileHeader(
+      BuildContext context, String name, String grade, String? image) {
+    final avatar = profileImageProvider(image);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.only(top: AppSpacing.s12, bottom: AppSpacing.s24),
@@ -155,8 +159,11 @@ class _StudentProfileScreenState extends State<StudentProfileScreen> {
             radius: 48,
             backgroundColor:
                 Theme.of(context).colorScheme.primary.withValues(alpha: .12),
-            child: Icon(Icons.person_rounded, size: 58,
-                color: Theme.of(context).colorScheme.primary),
+            backgroundImage: avatar,
+            child: avatar == null
+                ? Icon(Icons.person_rounded, size: 58,
+                    color: Theme.of(context).colorScheme.primary)
+                : null,
           ),
           const SizedBox(height: AppSpacing.s12),
           Text(name, style: Theme.of(context).textTheme.headlineMedium),

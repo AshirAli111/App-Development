@@ -83,6 +83,8 @@ class SessionService {
     }
   }
 
+  DbCollection get _users => Database.instance.collection('users');
+
   Future<List<Map<String, dynamic>>> getSessionsByUser(
     String userId,
     String role,
@@ -91,7 +93,26 @@ class SessionService {
     final docs = await _sessions
         .find(where.eq(field, ObjectId.fromHexString(userId)).eq('status', 'active'))
         .toList();
-    return docs;
+
+    // Enrich each session with the student's and tutor's name + avatar so the
+    // apps can render them (sessions only store the raw ObjectIds).
+    final enriched = <Map<String, dynamic>>[];
+    for (final doc in docs) {
+      final student = doc['studentId'] is ObjectId
+          ? await _users.findOne(where.eq('_id', doc['studentId']))
+          : null;
+      final tutor = doc['tutorId'] is ObjectId
+          ? await _users.findOne(where.eq('_id', doc['tutorId']))
+          : null;
+      enriched.add({
+        ...doc,
+        'studentName': student?['fullName'],
+        'studentImage': student?['profileImage'],
+        'tutorName': tutor?['fullName'],
+        'tutorImage': tutor?['profileImage'],
+      });
+    }
+    return enriched;
   }
 
   Future<Map<String, dynamic>?> getSessionById(String sessionId) async {

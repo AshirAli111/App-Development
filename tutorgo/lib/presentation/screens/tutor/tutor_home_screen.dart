@@ -5,8 +5,10 @@ import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/session_service.dart';
 import 'package:next_step_learning/data/services/notification_service.dart';
 import 'package:next_step_learning/data/services/payment_service.dart';
+import 'package:next_step_learning/data/services/user_service.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 
 class TutorHomeScreen extends StatefulWidget {
   const TutorHomeScreen({super.key});
@@ -18,7 +20,9 @@ class TutorHomeScreen extends StatefulWidget {
 class _TutorHomeScreenState extends State<TutorHomeScreen> {
   bool _isLoading = true;
   String _fullName = '';
+  String? _profileImage;
   List<Map<String, dynamic>> _sessions = [];
+  List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _notifications = [];
   Map<String, dynamic>? _paymentSummary;
 
@@ -49,16 +53,34 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
       userId: auth.userId,
       role: auth.role,
     );
+    final userService = UserService(
+      baseUrl: auth.baseUrl,
+      token: auth.accessToken,
+      userId: auth.userId,
+    );
 
     final sessions = await sessionService.getMySessions();
     final notifications = await notificationService.getNotifications();
     final summary = await paymentService.getPaymentSummary();
+    final profile = await userService.getMyProfile();
+
+    // Unique students derived from active sessions (name + avatar).
+    final studentMap = <String, Map<String, dynamic>>{};
+    for (final s in sessions) {
+      final id = s['studentId'] as String? ?? '';
+      final name = s['studentName'] as String? ?? '';
+      if (id.isNotEmpty && name.isNotEmpty && !studentMap.containsKey(id)) {
+        studentMap[id] = {'name': name, 'image': s['studentImage']};
+      }
+    }
 
     if (mounted) {
       setState(() {
         _sessions = sessions;
+        _students = studentMap.values.toList();
         _notifications = notifications;
         _paymentSummary = summary;
+        _profileImage = profile?['profileImage'] as String?;
         _isLoading = false;
       });
     }
@@ -71,11 +93,6 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     // Derive stats
     final activeSessions =
         _sessions.where((s) => s['status'] == 'active').length;
-    final studentNames = <String>{};
-    for (final s in _sessions) {
-      final name = s['studentName'] as String? ?? '';
-      if (name.isNotEmpty) studentNames.add(name);
-    }
     final totalEarnings = _paymentSummary?['completedPKR'] ?? 0;
 
     return Scaffold(
@@ -93,13 +110,13 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
                       _header(context),
                       const SizedBox(height: AppSpacing.s24),
                       _highlightCards(
-                          context, activeSessions, studentNames.length, totalEarnings),
+                          context, activeSessions, _students.length, totalEarnings),
                       const SizedBox(height: AppSpacing.s32),
 
-                      if (studentNames.isNotEmpty) ...[
+                      if (_students.isNotEmpty) ...[
                         _sectionTitle(context, "My Students", LucideIcons.users),
                         const SizedBox(height: AppSpacing.s16),
-                        _studentsGrid(context, studentNames.toList()),
+                        _studentsGrid(context, _students),
                         const SizedBox(height: AppSpacing.s32),
                       ],
 
@@ -161,10 +178,19 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white.withValues(alpha: .25),
-            child: const Icon(Icons.person_rounded, color: Colors.white, size: 32),
+          Builder(
+            builder: (context) {
+              final avatar = profileImageProvider(_profileImage);
+              return CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.white.withValues(alpha: .25),
+                backgroundImage: avatar,
+                child: avatar == null
+                    ? const Icon(Icons.person_rounded,
+                        color: Colors.white, size: 32)
+                    : null,
+              );
+            },
           ),
           const SizedBox(width: AppSpacing.s12),
           Column(
@@ -247,7 +273,8 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
     );
   }
 
-  Widget _studentsGrid(BuildContext context, List<String> students) {
+  Widget _studentsGrid(
+      BuildContext context, List<Map<String, dynamic>> students) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
@@ -262,6 +289,8 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
           mainAxisSpacing: AppSpacing.s16,
         ),
         itemBuilder: (_, i) {
+          final name = (students[i]['name'] ?? 'Student').toString();
+          final avatar = profileImageProvider(students[i]['image']);
           return Container(
             padding: const EdgeInsets.all(AppSpacing.s12),
             decoration: BoxDecoration(
@@ -280,13 +309,16 @@ class _TutorHomeScreenState extends State<TutorHomeScreen> {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: theme.colorScheme.primary.withValues(alpha: .12),
-                  child: Icon(LucideIcons.user, size: 18,
-                      color: theme.colorScheme.primary),
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: .12),
+                  backgroundImage: avatar,
+                  child: avatar == null
+                      ? Icon(LucideIcons.user,
+                          size: 18, color: theme.colorScheme.primary)
+                      : null,
                 ),
                 const SizedBox(height: AppSpacing.s8),
-                Text(students[i].split(' ').first,
-                    style: theme.textTheme.titleMedium),
+                Text(name.split(' ').first, style: theme.textTheme.titleMedium),
               ],
             ),
           );

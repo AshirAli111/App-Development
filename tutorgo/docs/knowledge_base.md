@@ -765,3 +765,61 @@ Either hangs up → Jitsi fires conferenceTerminated
 6. **Localization**
    - `intl` package already imported
    - Add ARB files for multi-language support
+
+---
+
+## 20. TICKET-06 — Chat, Booking, Profiles, Images, Rates
+
+### Profile images (`lib/core/utils/image_utils.dart`)
+- Profile images are stored as **base64** strings on the user document's `profileImage`
+  field (picked files are `base64Encode`d, ≤2MB). They are **not** URLs.
+- `profileImageProvider(dynamic raw)` returns an `ImageProvider?` and transparently handles
+  a network URL, a `data:` URI, or raw base64. Use it for **every** avatar; render a
+  placeholder icon when it returns `null`.
+- Student & tutor **profile setup** and **edit profile** screens now actually upload the
+  avatar (setup previously picked it but never sent it). Edit screens have a camera-badge
+  picker and preload the existing image.
+
+### Chat wiring
+- `tutor_profile_popup.dart` "Chat with Tutor" now calls `ChatService.startChat(tutorId)` to
+  get the real `chat['_id']`, then opens `StudentChatConversation` with `chatId` + auth
+  (previously it opened the tutor screen with no chatId, so chats never loaded/sent).
+- Backend `chat_service._enrichChat` reads `fullName` (users have no `name` field).
+
+### Booking (`lib/presentation/screens/student/book_session_sheet.dart`)
+- Tutor popup has a **Book Session** button → sheet (day + start/end time) →
+  `SessionService.createSession` → `POST /api/sessions/`. Booking shows in the student's
+  Learning History and the tutor's Schedule (status `active`).
+
+### Session enrichment (backend `session_service.getSessionsByUser`)
+- Each active session is enriched with `studentName`, `studentImage`, `tutorName`,
+  `tutorImage` (looked up from `users`). Consumed by: student dashboard "Your Tutors",
+  Learning History, **My Tutors** (booked tutors only), tutor home "My Students" grid, and
+  the tutor **My Students** list.
+
+### `recurrence` is a Map, not a String
+- Session `recurrence` = `{dayOfWeek(1-7), startTime, endTime, startDate}`. Never pass it to
+  `Text()` or cast `as String`. Format via helpers (see `student_dashboard._formatRecurrence`,
+  `tutor_schedule_screen`).
+
+### Tutor hourly rate
+- Field: `tutorProfile.pricePerHourPKR` (int). Editable in Tutor → Edit Profile
+  ("Rate (PKR / hour)"). Student UI reads `pricePerHourPKR` (not `pricePerHour`) and labels it
+  **PKR** in discovery/View-All cards, the tutor popup, and the booking sheet.
+
+### Editable email
+- Both edit-profile screens allow changing the email (login identifier). Backend
+  `PUT /api/users/me` returns **409 "That email is already in use"** on a unique-email conflict.
+
+### Backend resilience (Atlas idle disconnect)
+- `Database.ensureConnected()` reopens a dropped Mongo connection; `isConnected` getter added.
+- The notification scheduler tick is fully guarded (try/catch + `ensureConnected`) so a
+  transient DB error can never crash the process via its `Timer`.
+- `server.dart` has a `_dbRecoveryMiddleware` that reconnects before each request.
+
+### Environment / run note (supersedes older claims)
+- The app **requires the backend** (`tutorgo/backend`, `http://localhost:8080`, MongoDB).
+- `mongo_dart` 0.10.9 fails Atlas `mongodb+srv://` TLS handshakes; use the expanded
+  non-SRV `mongodb://host1,host2,host3/db?replicaSet=...&tls=true` URI in `backend/.env`.
+- Voice/video calls (Jitsi) have **no Windows-desktop** implementation
+  (`MissingPluginException`); use Android/iOS/web for calls.

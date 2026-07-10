@@ -32,11 +32,22 @@ class UserRoutes {
     final userId = request.headers['x-user-id'];
     if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
 
-    final body = await parseBody(request);
-    final updated = await _userService.updateUser(userId, body);
+    try {
+      final body = await parseBody(request);
+      final updated = await _userService.updateUser(userId, body);
 
-    if (updated == null) return errorResponse('User not found', statusCode: 404);
-    return jsonResponse(updated);
+      if (updated == null) {
+        return errorResponse('User not found', statusCode: 404);
+      }
+      return jsonResponse(updated);
+    } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('duplicate') || msg.contains('e11000')) {
+        return errorResponse('That email is already in use',
+            statusCode: 409);
+      }
+      return errorResponse('Failed to update profile', statusCode: 400);
+    }
   }
 
   Future<Response> _deleteMe(Request request) async {

@@ -3,6 +3,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/presentation/screens/student/tutor_profile_popup.dart';
 
 import '../../../core/theme/spacing.dart';
@@ -60,10 +61,11 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
           'name': name,
           'subject': subject.toString(),
           'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
-          'price': tutor['tutorProfile']?['pricePerHour'] ?? 0,
+          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
           'image': tutor['profileImage'],
           'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
           'qualification': tutor['tutorProfile']?['qualification'] ?? '',
+          'bio': tutor['tutorProfile']?['bio'] ?? '',
         });
       }
 
@@ -75,10 +77,11 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
           'name': name,
           'subject': 'General',
           'rating': tutor['tutorProfile']?['rating'] ?? 0.0,
-          'price': tutor['tutorProfile']?['pricePerHour'] ?? 0,
+          'price': tutor['tutorProfile']?['pricePerHourPKR'] ?? 0,
           'image': tutor['profileImage'],
           'experience': tutor['tutorProfile']?['experienceYears'] ?? 0,
           'qualification': tutor['tutorProfile']?['qualification'] ?? '',
+          'bio': tutor['tutorProfile']?['bio'] ?? '',
         });
       }
     }
@@ -152,7 +155,7 @@ class _TutorDiscoveryScreenState extends State<TutorDiscoveryScreen> {
         ),
         const SizedBox(height: AppSpacing.s12),
         SizedBox(
-          height: 190,
+          height: 200,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: tutors.length > 3 ? 3 : tutors.length,
@@ -194,9 +197,8 @@ class _TutorCard extends StatelessWidget {
             child: CircleAvatar(
               radius: 33,
               backgroundColor: theme.colorScheme.primary.withValues(alpha: .12),
-              backgroundImage:
-                  tutor["image"] != null ? NetworkImage(tutor["image"]) : null,
-              child: tutor["image"] == null
+              backgroundImage: profileImageProvider(tutor["image"]),
+              child: profileImageProvider(tutor["image"]) == null
                   ? Icon(LucideIcons.user, color: theme.colorScheme.primary)
                   : null,
             ),
@@ -212,7 +214,12 @@ class _TutorCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Center(
-            child: Text(tutor["subject"] ?? '', style: theme.textTheme.bodySmall),
+            child: Text(
+              tutor["subject"] ?? '',
+              style: theme.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           const Spacer(),
           Row(
@@ -238,7 +245,7 @@ class _TutorCard extends StatelessWidget {
               ),
               if (tutor["price"] != null && tutor["price"] != 0)
                 Text(
-                  "\$${tutor["price"]}/hr",
+                  "PKR ${tutor["price"]}/hr",
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.primary,
                     fontWeight: FontWeight.w600,

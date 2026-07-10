@@ -6,6 +6,7 @@ import 'package:next_step_learning/data/services/session_service.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/typography.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
 class TutorStudentsScreen extends StatefulWidget {
@@ -46,6 +47,7 @@ class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
           'name': studentName,
           'subject': s['subject'] ?? '',
           'status': s['status'] ?? '',
+          'image': s['studentImage'],
         };
       }
     }
@@ -112,7 +114,7 @@ class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
             "progress": 0.0,
             "assignments": 0,
             "lastSession": "Active",
-            "image": null,
+            "image": student['image'],
           },
         );
       },
@@ -132,12 +134,20 @@ class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
         ),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor:
-                  theme.colorScheme.primary.withValues(alpha: .12),
-              child: Icon(LucideIcons.user,
-                  color: theme.colorScheme.primary),
+            Builder(
+              builder: (context) {
+                final avatar = profileImageProvider(student['image']);
+                return CircleAvatar(
+                  radius: 24,
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: .12),
+                  backgroundImage: avatar,
+                  child: avatar == null
+                      ? Icon(LucideIcons.user,
+                          color: theme.colorScheme.primary)
+                      : null,
+                );
+              },
             ),
             const SizedBox(width: AppSpacing.s16),
             Expanded(

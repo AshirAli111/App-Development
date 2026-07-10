@@ -60,6 +60,7 @@ void main() async {
   final handler = const Pipeline()
       .addMiddleware(_corsMiddleware())
       .addMiddleware(logRequests())
+      .addMiddleware(_dbRecoveryMiddleware())
       .addHandler(app.call);
 
   // Start server
@@ -75,6 +76,23 @@ void main() async {
     server.close();
     exit(0);
   });
+}
+
+/// Re-opens the MongoDB connection before handling a request if it has
+/// dropped (e.g. Atlas idle timeout). Failures here are logged, not fatal —
+/// the downstream handler will surface a normal error response if the DB is
+/// genuinely unreachable, but the server process stays alive.
+Middleware _dbRecoveryMiddleware() {
+  return (Handler inner) {
+    return (Request request) async {
+      try {
+        await Database.ensureConnected();
+      } catch (e) {
+        print('DB reconnect attempt failed: $e');
+      }
+      return inner(request);
+    };
+  };
 }
 
 Middleware _corsMiddleware() {

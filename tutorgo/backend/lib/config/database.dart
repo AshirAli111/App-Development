@@ -2,8 +2,12 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 class Database {
   static Db? _db;
+  static String? _mongoUri;
+  static String? _dbName;
 
   static Future<Db> connect(String mongoUri, String dbName) async {
+    _mongoUri = mongoUri;
+    _dbName = dbName;
     _db = await Db.create(mongoUri);
     await _db!.open();
     print('Connected to MongoDB: $dbName');
@@ -11,11 +15,31 @@ class Database {
     return _db!;
   }
 
+  static bool get isConnected => _db != null && _db!.isConnected;
+
   static Db get instance {
     if (_db == null || !_db!.isConnected) {
       throw StateError('Database not connected. Call Database.connect() first.');
     }
     return _db!;
+  }
+
+  /// Re-opens the connection if it has dropped (e.g. Atlas idle timeout).
+  /// Safe to call before every request/scheduler tick — it's a no-op when the
+  /// connection is already alive.
+  static Future<void> ensureConnected() async {
+    if (isConnected) return;
+    if (_mongoUri == null || _dbName == null) {
+      throw StateError('Database not connected. Call Database.connect() first.');
+    }
+    try {
+      await _db?.close();
+    } catch (_) {
+      // Ignore errors closing an already-broken connection.
+    }
+    _db = await Db.create(_mongoUri!);
+    await _db!.open();
+    print('Reconnected to MongoDB: $_dbName');
   }
 
   static Future<void> close() async {

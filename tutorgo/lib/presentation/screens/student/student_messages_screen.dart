@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:next_step_learning/core/utils/image_utils.dart';
 import 'package:next_step_learning/data/services/chat_service.dart';
 import 'package:next_step_learning/presentation/screens/student/student_chats_conversation_screen.dart';
 
@@ -116,6 +117,7 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
         final unread = unreadCount[widget.userId] ?? 0;
         final chatId = chat['_id'] ?? '';
         final timestamp = lastMessage?['timestamp'];
+        final avatar = profileImageProvider(otherUser['profileImage']);
 
         return GestureDetector(
           onTap: () {
@@ -154,10 +156,8 @@ class _StudentMessagesScreenState extends State<StudentMessagesScreen> {
                       .colorScheme
                       .primary
                       .withValues(alpha: 0.15),
-                  backgroundImage: otherUser['profileImage'] != null
-                      ? NetworkImage(otherUser['profileImage'])
-                      : null,
-                  child: otherUser['profileImage'] == null
+                  backgroundImage: avatar,
+                  child: avatar == null
                       ? Icon(
                           LucideIcons.user,
                           color: Theme.of(context).colorScheme.primary,
