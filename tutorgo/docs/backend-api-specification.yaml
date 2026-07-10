@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: TutorGo Backend API
+  title: NextStepLearning Backend API
   description: |
-    REST API for the TutorGo tutoring platform.
+    REST API for the NextStepLearning tutoring platform.
 
     **Authentication:** All `/api/*` routes require a Bearer JWT token in the Authorization header.
     Public routes (`/auth/*`) do not require authentication.
@@ -10,7 +10,7 @@ info:
     **Currency:** All monetary values are in Pakistani Rupees (PKR) as integers.
   version: 1.0.0
   contact:
-    name: TutorGo Team
+    name: NextStepLearning Team
 
 servers:
   - url: http://localhost:8080

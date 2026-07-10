@@ -1,11 +1,11 @@
-# TutorGo - Technical Knowledge Base
+# NextStepLearning - Technical Knowledge Base
 
 ## 1. Project Overview
 
 | Field | Value |
 |-------|-------|
 | **Package Name** | next_step_learning |
-| **App Name** | TutorGo |
+| **App Name** | NextStepLearning |
 | **Description** | AI-powered tutoring platform connecting students with tutors |
 | **Flutter SDK** | ^3.9.2 |
 | **Version** | 1.0.0+1 |
@@ -864,3 +864,16 @@ Either hangs up → Jitsi fires conferenceTerminated
 - Each session card has **Reschedule** (bottom sheet → `SessionService.updateSession` with a
   new `recurrence`) and **Cancel** (Yes/No confirm dialog → `SessionService.cancelSession`,
   which also cancels upcoming instances). Both refresh the schedule.
+
+---
+
+## 22. TICKET-09 — Display name = NextStepLearning
+
+- The user-facing **display name is "NextStepLearning"** (MaterialApp title, Windows window
+  title, onboarding/role/register copy, README, and docs).
+- **Identifiers are intentionally unchanged** (backend/build must not break): Mongo DB
+  `tutorgo_db`, backend package `tutorgo_backend`, Flutter package `next_step_learning`, the
+  `tutorgo.exe` binary, and the Dart `TutorGo` widget class in `main.dart`.
+- Onboarding: subtitle "…get best quality education anytime, anywhere."; the content is a
+  centered `ConstrainedBox(maxWidth: 460)` with a smaller centered "Get Started" button so it
+  lays out correctly on wide/desktop windows.

@@ -1,4 +1,4 @@
-# TutorGo
+# NextStepLearning
 
 AI-powered tutoring platform connecting students with tutors. Built with Flutter.
 
@@ -333,7 +333,7 @@ If you see "CMake not found":
 
 The app uses camera, file picker, and permissions. If you get permission denials on Android emulator:
 
-- Go to Settings > Apps > TutorGo > Permissions > Allow all
+- Go to Settings > Apps > NextStepLearning > Permissions > Allow all
 - Or test on a physical device for accurate permission flows
 
 ### SDK version mismatch

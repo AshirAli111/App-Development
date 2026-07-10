@@ -106,7 +106,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 FadeIn(
                   delay: 200,
                   child: Text(
-                    "Join TutorGo to start learning or teaching",
+                    "Join NextStepLearning to start learning or teaching",
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context)
                               .textTheme

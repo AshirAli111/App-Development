@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/colors.dart';
 import '../../../core/utils/size_config.dart';
-import '../../components/buttons/app_primary_button.dart';
 import '../../components/animations/fade_in.dart';
 import '../../../routes/app_routes.dart';
 
@@ -15,7 +15,10 @@ class OnboardingScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: Column(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             SizedBox(height: SizeConfig.h(40)),
@@ -42,7 +45,7 @@ class OnboardingScreen extends StatelessWidget {
             FadeIn(
               delay: 400,
               child: Text(
-                "Learn Smarter with TutorGo",
+                "Learn Smarter with NextStepLearning",
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                   fontWeight: FontWeight.w700,
@@ -59,7 +62,7 @@ class OnboardingScreen extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: SizeConfig.w(26)),
                 child: Text(
                   "Find the best tutors, book sessions easily, "
-                  "and get AI-verified learning anytime, anywhere.",
+                  "and get best quality education anytime, anywhere.",
                   textAlign: TextAlign.center,
                   style: Theme.of(
                     context,
@@ -70,20 +73,40 @@ class OnboardingScreen extends StatelessWidget {
 
             const Spacer(),
 
-            /// ⭐ BOTTOM BUTTON
+            /// ⭐ BOTTOM BUTTON (smaller, centered)
             FadeIn(
               delay: 800,
               child: Padding(
                 padding: EdgeInsets.only(bottom: SizeConfig.h(40)),
-                child: AppPrimaryButton(
-                  text: "Get Started",
-                  onPressed: () {
-                    Navigator.pushNamed(context, AppRoutes.login);
-                  },
+                child: SizedBox(
+                  width: 200,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, AppRoutes.login);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      "Get Started",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ],
+            ),
+          ),
         ),
       ),
     );
