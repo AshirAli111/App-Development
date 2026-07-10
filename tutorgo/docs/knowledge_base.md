@@ -877,3 +877,36 @@ Either hangs up → Jitsi fires conferenceTerminated
 - Onboarding: subtitle "…get best quality education anytime, anywhere."; the content is a
   centered `ConstrainedBox(maxWidth: 460)` with a smaller centered "Get Started" button so it
   lays out correctly on wide/desktop windows.
+
+---
+
+## 23. TICKET-10 — Notifications (real-time messages + class reminders)
+
+Local notifications **while the app is running** (no Firebase). Dependency:
+`flutter_local_notifications` (^18) + `shared_preferences`.
+
+### Pieces (all under `lib/`)
+- `data/services/notification_prefs.dart` — device-local toggles `messagesEnabled` /
+  `remindersEnabled` (shared_preferences, default on).
+- `data/services/local_notification_service.dart` — singleton wrapping the plugin;
+  `showMessage(...,payload)` / `showReminder(...)`, each gated by the matching pref.
+  `onChatTap` fires with the payload when an OS notification is tapped.
+- `data/services/notification_poller.dart` — singleton started by the logged-in **navbars**
+  (`start(baseUrl, token, userId, role)`), stopped on their dispose. Every 8s it polls
+  `GET /api/notifications/` (new `session_reminder` records) and `GET /api/chats/` (new
+  incoming `lastMessage`). Primes a baseline on start and de-dupes so nothing fires twice.
+  `NotificationPoller.activeChatId` (set by the conversation screens) suppresses banners for
+  the chat you're viewing. `openChat(chatId)` navigates to the right conversation.
+- `core/utils/app_globals.dart` — `navigatorKey` (wired on `MaterialApp`) + `showInAppBanner`
+  (transient top overlay, optional `onTap`), used because services have no BuildContext.
+
+### Behaviour
+- New message (not from you, not the open chat) → in-app banner (+ OS notif on mobile),
+  tappable → opens that conversation.
+- Class-reminder record → banner (+ OS notif on mobile).
+- Toggles in both Notifications settings screens persist and gate the notifications.
+
+### Platform limits
+- **Windows/web**: no OS-toast implementation in the plugin → skipped; the **in-app banner**
+  is the popup there. Real OS notifications fire on Android/iOS/macOS/Linux.
+- App-fully-closed push (FCM/APNs) is out of scope.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/notification_poller.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_dashboard.dart';
 import 'package:next_step_learning/presentation/screens/student/student_messages_screen.dart';
@@ -24,6 +25,22 @@ class _StudentNavbarState extends State<StudentNavbar> {
   void initState() {
     currentIndex = widget.index;
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final auth = context.read<AuthProvider>();
+      NotificationPoller.instance.start(
+        baseUrl: auth.baseUrl,
+        token: auth.accessToken,
+        userId: auth.userId,
+        role: auth.role,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    NotificationPoller.instance.stop();
+    super.dispose();
   }
 
   final icons = [

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'package:next_step_learning/core/theme/spacing.dart';
+import 'package:next_step_learning/data/services/notification_prefs.dart';
 
 class NotificationsSettingsScreen extends StatefulWidget {
   const NotificationsSettingsScreen({super.key});
@@ -19,6 +20,23 @@ class _NotificationsSettingsScreenState
   bool schedule = true;
   bool reminders = true;
   bool promotions = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final m = await NotificationPrefs.messagesEnabled();
+    final r = await NotificationPrefs.remindersEnabled();
+    if (mounted) {
+      setState(() {
+        messages = m;
+        schedule = r;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +65,10 @@ class _NotificationsSettingsScreenState
               subtitle: "Receive notifications for new messages",
               icon: LucideIcons.messageCircle,
               value: messages,
-              onChanged: (v) => setState(() => messages = v),
+              onChanged: (v) {
+                setState(() => messages = v);
+                NotificationPrefs.setMessagesEnabled(v);
+              },
             ),
             _toggleTile(
               context: context,
@@ -67,7 +88,10 @@ class _NotificationsSettingsScreenState
               subtitle: "Reminders before your session starts",
               icon: LucideIcons.calendar,
               value: schedule,
-              onChanged: (v) => setState(() => schedule = v),
+              onChanged: (v) {
+                setState(() => schedule = v);
+                NotificationPrefs.setRemindersEnabled(v);
+              },
             ),
             _toggleTile(
               context: context,
