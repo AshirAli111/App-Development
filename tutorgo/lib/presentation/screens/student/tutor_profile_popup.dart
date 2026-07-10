@@ -226,6 +226,7 @@ Future<void> _bookSession(BuildContext context, Map data) async {
       tutorId: tutorId,
       tutorName: (data["name"] ?? 'Tutor').toString(),
       subject: (data["subject"] ?? 'General').toString(),
+      courses: List<String>.from(data["courses"] ?? const []),
       pricePerSession: price,
     ),
   );

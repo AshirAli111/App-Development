@@ -823,3 +823,44 @@ Either hangs up → Jitsi fires conferenceTerminated
   non-SRV `mongodb://host1,host2,host3/db?replicaSet=...&tls=true` URI in `backend/.env`.
 - Voice/video calls (Jitsi) have **no Windows-desktop** implementation
   (`MissingPluginException`); use Android/iOS/web for calls.
+
+---
+
+## 21. TICKET-08 — Courses (selection, discovery filter, booking)
+
+### Course list (`lib/core/constants/courses.dart`)
+- `kCourses` is the canonical fixed course list. Students pick only from it; **tutors** pick
+  from it **and can add custom courses**.
+- Student courses → `studentProfile.selectedCourses`. Tutor courses → `tutorProfile.subjects`
+  (may contain custom values outside `kCourses`).
+- **Gotcha:** student profile setup previously saved courses under `interests` — it must be
+  `selectedCourses` (the field discovery/edit read).
+
+### Edit Profile
+- **Student** Edit Profile: multi-select course chips. The chip list = `kCourses` +
+  every course tutors currently teach (custom included) + anything already selected, so a
+  student can pick a tutor's custom course "as long as a tutor still offers it".
+- **Tutor** Edit Profile: multi-select chips (fixed list + existing customs) plus an
+  "Add a custom course" field. Custom courses become visible to students.
+
+### Courses page (tutor discovery)
+- Loads the student's `selectedCourses`. Filter chips: **My Courses** (default when the
+  student has courses; union of their courses) · **All Courses** (everyone) · one chip per
+  course, where the course chips = student courses + **all tutor-taught courses** (so custom
+  courses are filterable). `_sectionVisible` decides which subject sections render.
+- Each tutor card carries `courses` (the tutor's full subject list) for the booking sheet.
+- Prices shown as **PKR** using `tutorProfile.pricePerHourPKR`.
+
+### Booking
+- `BookSessionSheet` shows a **course dropdown** (options = the tutor's `courses`, default =
+  the tapped subject) so the session records a real course. Sessions booked before TICKET-08
+  keep `subject: "General"`.
+
+### Tutor dashboards
+- Tutor Home "My Students" lists one tile per **(student, course)** with the course name; the
+  "Students" stat counts distinct students.
+
+### Tutor Schedule — reschedule & cancel
+- Each session card has **Reschedule** (bottom sheet → `SessionService.updateSession` with a
+  new `recurrence`) and **Cancel** (Yes/No confirm dialog → `SessionService.cancelSession`,
+  which also cancels upcoming instances). Both refresh the schedule.
