@@ -172,7 +172,8 @@ paths:
       tags: [Users]
       summary: Update current user profile
       description: |
-        Updates user profile fields. Cannot update email, password, or role via this endpoint.
+        Updates user profile fields (including `email`, which is the login identifier).
+        Password and role cannot be changed via this endpoint.
         For student profiles, update `studentProfile` object.
         For tutor profiles, update `tutorProfile` object.
       security:
@@ -190,8 +191,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
     delete:
       tags: [Users]
       summary: Delete current user account
@@ -1007,6 +1012,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Request conflicts with existing data (e.g. email already in use)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
     # ── Requests ──
@@ -1049,6 +1060,12 @@ components:
       properties:
         fullName:
           type: string
+        email:
+          type: string
+          format: email
+          description: |
+            Login identifier. Must remain unique — updating to an email already in use
+            returns 409.
         phone:
           type: string
         profileImage:
@@ -1275,6 +1292,26 @@ components:
         notes:
           type: string
           nullable: true
+        studentName:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Student's fullName, added by GET /api/sessions/ enrichment.
+        studentImage:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Student's base64 profileImage, added by GET /api/sessions/ enrichment.
+        tutorName:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Tutor's fullName, added by GET /api/sessions/ enrichment.
+        tutorImage:
+          type: string
+          nullable: true
+          readOnly: true
+          description: Tutor's base64 profileImage, added by GET /api/sessions/ enrichment.
         createdAt:
           type: string
           format: date-time
