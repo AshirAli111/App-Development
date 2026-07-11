@@ -53,6 +53,29 @@ class AuthService {
     throw Exception(data['error'] ?? 'Registration failed');
   }
 
+  /// Resets the password after verifying email + registered phone.
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String phone,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'phone': phone,
+        'newPassword': newPassword,
+      }),
+    );
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Password reset failed');
+  }
+
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/refresh'),

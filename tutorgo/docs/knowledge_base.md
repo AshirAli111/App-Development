@@ -910,3 +910,40 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - **Windows/web**: no OS-toast implementation in the plugin → skipped; the **in-app banner**
   is the popup there. Real OS notifications fire on Android/iOS/macOS/Linux.
 - App-fully-closed push (FCM/APNs) is out of scope.
+
+---
+
+## 24. TICKET-11 — Forgot Password (account recovery)
+
+- No email server: identity is verified by **email + the phone stored on the account**, then
+  the user sets a new password. Role-agnostic (students & tutors).
+- Backend `POST /auth/reset-password` `{email, phone, newPassword}`: finds by email, checks
+  `phone` matches, bcrypt-hashes and saves. Generic error ("No account matches that email and
+  phone number") so it doesn't leak which field is wrong.
+- Frontend: `AuthService.resetPassword(...)`, `ForgotPasswordScreen` (route
+  `/forgot-password`), and a "Forgot Password?" link on the login screen.
+
+## 25. TICKET-12 — Deferred account creation + setup dropdowns
+
+- **Register no longer creates the account.** It collects name/email/password/role and
+  `pushNamed`s the setup route with those as `arguments`. The account is created only when the
+  profile is completed — the setup screen calls `auth.register(...)` then `updateProfile(...)`.
+  `app_pages` passes the args into `StudentProfileSetup` / `TutorProfileSetup` (optional
+  `name/email/password`; when null the screen assumes an already-signed-in user).
+- Because registration is deferred, the **email-uniqueness check happens at "Complete"**.
+- **Tutor setup**: Experience dropdown (1..10, "10+"); Qualification dropdown (Bachelors /
+  Masters / PhD); **all four documents required** (CNIC front/back, teaching certificate,
+  degree) before completion. **Student setup**: Grade/Class dropdown (Matriculation / College
+  / Bachelors / Masters). Both setups have an AppBar **back** arrow to return to Register.
+
+## 26. TICKET-13 — Password-confirmed delete + required student fields
+
+- **Delete account** (both roles): `DELETE /api/users/me` now requires `{password}` in the
+  body; backend `UserService.verifyPassword` checks it (bcrypt) before `deleteUser`. Wrong/
+  absent password → 401/400, nothing deleted. Frontend `UserService.deleteAccount(password)`
+  returns null on success or the error string. The (shared) delete screen adds a Yes/No confirm
+  and, on success, logs out → onboarding. Tutor profile gained a "Delete Account" tile
+  (route `/delete_account`, reuses `StudentDeleteAccountScreen`).
+- **Student setup validation**: Complete is blocked (with a "Please provide: X" message) until
+  Full Name, Phone, Age, Grade/Class, and ≥1 interest are provided (Address optional). Combined
+  with deferred registration, an incomplete student profile creates no account.

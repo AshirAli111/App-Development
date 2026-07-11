@@ -1,9 +1,22 @@
+import 'package:dbcrypt/dbcrypt.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import '../config/database.dart';
 import '../models/user_model.dart';
 
 class UserService {
+  final _dbcrypt = DBCrypt();
+
   DbCollection get _users => Database.instance.collection('users');
+
+  /// Verifies a plaintext password against the user's stored bcrypt hash.
+  Future<bool> verifyPassword(String userId, String password) async {
+    final doc = await _users.findOne(
+      where.eq('_id', ObjectId.fromHexString(userId)),
+    );
+    final hash = doc?['password'] as String?;
+    if (hash == null) return false;
+    return _dbcrypt.checkpw(password, hash);
+  }
 
   Future<Map<String, dynamic>?> getUserById(String userId) async {
     final doc = await _users.findOne(

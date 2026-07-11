@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
 import 'package:next_step_learning/presentation/screens/splash/splash_screen.dart';
 import 'package:next_step_learning/presentation/screens/login/register_screen.dart';
+import 'package:next_step_learning/presentation/screens/login/forgot_password_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_chats_conversation_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_dashboard.dart';
 import 'package:next_step_learning/presentation/screens/student/student_delete_account_screen.dart';
@@ -60,14 +61,27 @@ class AppPages {
       case AppRoutes.register:
         return _page(const RegisterScreen());
 
+      case AppRoutes.forgotPassword:
+        return _page(const ForgotPasswordScreen());
+
       case AppRoutes.roleSelection:
         return _page(const RoleSelectionScreen());
 
       case AppRoutes.studentSetup:
-        return _page(const StudentProfileSetup());
+        final s = args as Map?;
+        return _page(StudentProfileSetup(
+          name: s?['name'] as String?,
+          email: s?['email'] as String?,
+          password: s?['password'] as String?,
+        ));
 
       case AppRoutes.tutorSetup:
-        return _page(const TutorProfileSetup());
+        final t = args as Map?;
+        return _page(TutorProfileSetup(
+          name: t?['name'] as String?,
+          email: t?['email'] as String?,
+          password: t?['password'] as String?,
+        ));
 
       // NAVBAR ROUTES
       case AppRoutes.studentNavbar:
@@ -165,6 +179,7 @@ class AppPages {
         return _page(AiChatScreen(role: role));
 
       case AppRoutes.studentDeleteAccount:
+      case AppRoutes.deleteAccount:
         return _page(const StudentDeleteAccountScreen());
       case AppRoutes.studentViewAllTutors:
         final args = settings.arguments as Map<String, dynamic>;

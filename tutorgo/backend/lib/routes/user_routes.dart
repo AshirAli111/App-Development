@@ -54,6 +54,15 @@ class UserRoutes {
     final userId = request.headers['x-user-id'];
     if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
 
+    // Require the current password to confirm account deletion.
+    final body = await parseBody(request);
+    final password = body['password'] as String?;
+    if (password == null || password.isEmpty) {
+      return errorResponse('Password is required', statusCode: 400);
+    }
+    final ok = await _userService.verifyPassword(userId, password);
+    if (!ok) return errorResponse('Incorrect password', statusCode: 401);
+
     final deleted = await _userService.deleteUser(userId);
     if (!deleted) return errorResponse('User not found', statusCode: 404);
 

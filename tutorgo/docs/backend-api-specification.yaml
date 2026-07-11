@@ -148,6 +148,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Reset password (account recovery)
+      description: |
+        Resets a user's password after verifying their email and the phone number
+        stored on the account (no email server involved). Works for students and tutors.
+        Returns a generic error when the email/phone pair does not match an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, phone, newPassword]
+              properties:
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                  description: The phone number saved on the account
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password reset successful
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
   # ─────────────────────────────────────────────
   # USERS
   # ─────────────────────────────────────────────
@@ -200,9 +239,22 @@ paths:
     delete:
       tags: [Users]
       summary: Delete current user account
-      description: Permanently deletes the authenticated user's account.
+      description: |
+        Permanently deletes the authenticated user's account. Requires the user's
+        current password in the body to confirm; a wrong/absent password is rejected.
       security:
         - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                password:
+                  type: string
+                  description: The account's current password
       responses:
         '200':
           description: Account deleted
@@ -214,8 +266,14 @@ paths:
                   message:
                     type: string
                     example: Account deleted successfully
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
-          $ref: '#/components/responses/Unauthorized'
+          description: Missing token or incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           $ref: '#/components/responses/NotFound'
 
