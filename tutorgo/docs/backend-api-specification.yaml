@@ -827,6 +827,31 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
+  /api/payments/deposit:
+    post:
+      tags: [Payments]
+      summary: Student deposit to the platform (admin) account
+      description: |
+        Records a student's payment to the platform account via a chosen gateway
+        (easypaisa / jazzcash / bank_transfer / card). Simulated — no real gateway.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amountPKR, method]
+              properties:
+                amountPKR: { type: integer }
+                method: { type: string }
+                senderName: { type: string }
+                senderAccount: { type: string }
+      responses:
+        '201': { description: Deposit recorded }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
   /api/payments/summary:
     get:
       tags: [Payments]
@@ -1015,6 +1040,164 @@ paths:
                 $ref: '#/components/schemas/StripeSession'
         '404':
           description: Session not found
+
+  # ─────────────────────────────────────────────
+  # QUIZZES (MCQ, auto-graded)
+  # ─────────────────────────────────────────────
+  /api/quizzes/:
+    post:
+      tags: [Quizzes]
+      summary: Create an MCQ quiz for a student (tutor)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, title, questions]
+              properties:
+                studentId: { type: string }
+                title: { type: string }
+                subject: { type: string }
+                questions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      text: { type: string }
+                      options:
+                        type: array
+                        items: { type: string }
+                      correctIndex: { type: integer }
+      responses:
+        '201': { description: Quiz created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    get:
+      tags: [Quizzes]
+      summary: List quizzes for the current user
+      description: Tutors see quizzes they created; students see assigned quizzes with the answer key stripped.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of quizzes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quizzes:
+                    type: array
+                    items: { type: object }
+
+  /api/quizzes/{id}/submit:
+    post:
+      tags: [Quizzes]
+      summary: Student submits answers; score is computed automatically
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  items: { type: integer }
+                  description: Selected option index per question
+      responses:
+        '200': { description: Submission recorded with score }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ─────────────────────────────────────────────
+  # ASSIGNMENTS (file upload, tutor-graded)
+  # ─────────────────────────────────────────────
+  /api/assignments/:
+    post:
+      tags: [Assignments]
+      summary: Create an assignment for a student (tutor)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studentId, title]
+              properties:
+                studentId: { type: string }
+                title: { type: string }
+                description: { type: string }
+      responses:
+        '201': { description: Assignment created }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    get:
+      tags: [Assignments]
+      summary: List assignments for the current user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of assignments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assignments:
+                    type: array
+                    items: { type: object }
+
+  /api/assignments/{id}/submit:
+    post:
+      tags: [Assignments]
+      summary: Student uploads a file submission (base64)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fileBase64]
+              properties:
+                fileBase64: { type: string }
+                fileName: { type: string }
+      responses:
+        '200': { description: Submission recorded }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/assignments/{id}/grade:
+    put:
+      tags: [Assignments]
+      summary: Tutor grades a submission (marks + feedback)
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                marks: { type: integer }
+                feedback: { type: string }
+      responses:
+        '200': { description: Graded }
+        '404': { $ref: '#/components/responses/NotFound' }
 
 # ═════════════════════════════════════════════════
 # COMPONENTS

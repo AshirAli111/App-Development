@@ -9,6 +9,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/constants/courses.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/image_utils.dart';
+import '../../components/inputs/phone_field.dart';
 
 class StudentEditProfileScreen extends StatefulWidget {
   const StudentEditProfileScreen({super.key});
@@ -226,7 +227,10 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
                   const SizedBox(height: AppSpacing.s16),
                   _inputField(context, "Email", _emailController),
                   const SizedBox(height: AppSpacing.s16),
-                  _inputField(context, "Phone Number", _phoneController),
+                  Text("Phone Number",
+                      style: Theme.of(context).textTheme.bodyLarge),
+                  const SizedBox(height: 6),
+                  PhoneField(controller: _phoneController),
                   const SizedBox(height: AppSpacing.s24),
                   Text("My Courses",
                       style: Theme.of(context).textTheme.bodyLarge),

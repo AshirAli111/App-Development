@@ -947,3 +947,44 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - **Student setup validation**: Complete is blocked (with a "Please provide: X" message) until
   Full Name, Phone, Age, Grade/Class, and ≥1 interest are provided (Address optional). Combined
   with deferred registration, an incomplete student profile creates no account.
+
+---
+
+## 27. TICKET-14 — Quizzes & assignments
+
+Two backend collections (one doc per task, submission embedded): `quizzes`
+`{tutorId, studentId, title, subject, questions:[{text,options[],correctIndex}], submission}`
+and `assignments` `{tutorId, studentId, title, subject, description, submission:{fileBase64,
+fileName}, marks, feedback, gradedAt}`. Services/routes in `backend/lib/{services,routes}`.
+
+- **Quizzes (MCQ, auto-graded)**: `POST /api/quizzes`, `GET /api/quizzes` (role-scoped;
+  correct answers stripped for students), `POST /api/quizzes/{id}/submit` (auto score).
+- **Assignments (file upload)**: `POST /api/assignments`, `GET /api/assignments`,
+  `POST /api/assignments/{id}/submit` (base64 file), `PUT /api/assignments/{id}/grade`.
+- Frontend: `QuizService`, `AssignmentService`; tutor `CreateQuizScreen` / `CreateAssignmentScreen`
+  + grade dialog inside the (now stateful) `TutorStudentDetailScreen` (Message opens the chat,
+  real Session History, studentId passed through). Student sees tasks **on the Home dashboard**
+  ("Quizzes & Assignments", course + tutor labelled) — Take a quiz, Upload an assignment; also
+  `StudentTasksScreen`, `TakeQuizScreen`.
+- Also: Windows exe metadata (Runner.rc ProductName/FileDescription) set to NextStepLearning
+  (binary stays `tutorgo.exe`; an existing taskbar pin must be re-pinned to update its label).
+
+## 28. TICKET-15 — Proper payment (student → admin) & tutor payout
+
+- Student deposit: `POST /api/payments/deposit` `{amountPKR, method, senderName, senderAccount}`
+  → `deposits` collection. `SendPaymentScreen` collects amount + gateway (easypaisa/jazzcash/
+  bank_transfer/card), shows the admin destination account, validates sender details.
+- Tutor payout details saved to `tutorProfile.payoutAccount` via `updateProfile`
+  (`PayoutSettingsScreen`). No real gateway — flow is simulated but records the transaction.
+
+## 29. TICKET-16 — Banks, phone field, payout view/edit
+
+- `core/constants/banks.dart` (Pakistani banks) + `core/constants/country_codes.dart`.
+- `PhoneField` (`presentation/components/inputs/phone_field.dart`): country-code dropdown
+  (default +92) + digits-only, max-10 number; binds the full number (e.g. `+923001234567`) to
+  the passed controller. Used across setup/edit/forgot-password/payment/payout phone inputs.
+- Payout Settings: bank dropdown for Bank Transfer, phone for wallets. Payment Methods (tutor)
+  is view-only.
+- **Backend read-strip fix**: `getUserById` now returns the raw doc (minus password) instead of
+  round-tripping through `UserModel`, so extra sub-fields (`tutorProfile.payoutAccount`,
+  `studentProfile.selectedCourses`) survive; `updateUser` no longer strips `email`.

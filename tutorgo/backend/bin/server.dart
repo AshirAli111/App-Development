@@ -14,6 +14,8 @@ import 'package:tutorgo_backend/routes/ai_routes.dart';
 import 'package:tutorgo_backend/routes/notification_routes.dart';
 import 'package:tutorgo_backend/routes/payment_routes.dart';
 import 'package:tutorgo_backend/routes/stripe_routes.dart';
+import 'package:tutorgo_backend/routes/quiz_routes.dart';
+import 'package:tutorgo_backend/routes/assignment_routes.dart';
 import 'package:tutorgo_backend/services/notification_service.dart';
 
 void main() async {
@@ -42,6 +44,8 @@ void main() async {
   protectedRouter.mount('/notifications/', NotificationRoutes().router.call);
   protectedRouter.mount('/payments/', PaymentRoutes().router.call);
   protectedRouter.mount('/stripe/', StripeRoutes().router.call);
+  protectedRouter.mount('/quizzes/', QuizRoutes().router.call);
+  protectedRouter.mount('/assignments/', AssignmentRoutes().router.call);
 
   // Apply auth middleware to protected routes
   final protectedHandler = const Pipeline()

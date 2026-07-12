@@ -9,6 +9,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/constants/courses.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
+import '../../components/inputs/phone_field.dart';
 import '../../../routes/app_routes.dart';
 
 class StudentProfileSetup extends StatefulWidget {
@@ -257,9 +258,13 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                     controller: _emailController,
                     keyboard: TextInputType.emailAddress,
                     enabled: false),
-                _input(context, "Phone Number", 580,
-                    controller: _phoneController,
-                    keyboard: TextInputType.phone),
+                FadeIn(
+                  delay: 580,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
+                    child: PhoneField(controller: _phoneController),
+                  ),
+                ),
                 _input(context, "Age", 600,
                     controller: _ageController,
                     keyboard: TextInputType.number),

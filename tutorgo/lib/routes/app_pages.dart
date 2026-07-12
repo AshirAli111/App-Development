@@ -17,6 +17,7 @@ import 'package:next_step_learning/presentation/screens/student/student_privacy_
 import 'package:next_step_learning/presentation/screens/student/student_profile_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_support_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_tutors_screen.dart';
+import 'package:next_step_learning/presentation/screens/student/student_tasks_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/view_all_tutors_screen.dart';
 import 'package:next_step_learning/presentation/screens/tutor/help_screen.dart';
 import 'package:next_step_learning/presentation/screens/tutor/language_selection_screen.dart';
@@ -181,6 +182,9 @@ class AppPages {
       case AppRoutes.studentDeleteAccount:
       case AppRoutes.deleteAccount:
         return _page(const StudentDeleteAccountScreen());
+
+      case AppRoutes.studentTasks:
+        return _page(const StudentTasksScreen());
       case AppRoutes.studentViewAllTutors:
         final args = settings.arguments as Map<String, dynamic>;
 
@@ -240,11 +244,9 @@ class AppPages {
         final data = args as Map<String, dynamic>;
         return _page(
           TutorStudentDetailScreen(
-            name: data["name"],
-            grade: data["grade"],
-            progress: data["progress"],
-            assignments: data["assignments"],
-            lastSession: data["lastSession"],
+            studentId: (data["studentId"] ?? '').toString(),
+            name: data["name"] ?? 'Student',
+            grade: data["grade"] ?? '',
             image: data["image"],
           ),
         );

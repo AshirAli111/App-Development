@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/spacing.dart';
-import '../../../routes/app_routes.dart';
+import '../payment/send_payment_screen.dart';
 
 class StudentPaymentMethodsScreen extends StatelessWidget {
   const StudentPaymentMethodsScreen({super.key});
@@ -10,21 +10,25 @@ class StudentPaymentMethodsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final methods = [
       {
-        "name": "Pay with Card (Stripe)",
+        "id": "card",
+        "name": "Pay with Card",
         "icon": Icons.credit_card,
         "color": const Color(0xFF635BFF),
       },
       {
+        "id": "easypaisa",
         "name": "Easypaisa",
         "icon": Icons.phone_android,
         "color": const Color(0xFF4CAF50),
       },
       {
+        "id": "jazzcash",
         "name": "JazzCash",
         "icon": Icons.phone_android,
         "color": const Color(0xFFE91E63),
       },
       {
+        "id": "bank_transfer",
         "name": "Bank Transfer",
         "icon": Icons.account_balance,
         "color": const Color(0xFF2196F3),
@@ -49,17 +53,12 @@ class StudentPaymentMethodsScreen extends StatelessWidget {
           final method = methods[i];
           return GestureDetector(
             onTap: () {
-              // Navigate to payment checkout with demo data
-              Navigator.pushNamed(
+              Navigator.push(
                 context,
-                AppRoutes.paymentCheckout,
-                arguments: {
-                  'studentId': 'demo_student_id',
-                  'tutorId': 'demo_tutor_id',
-                  'amountPKR': 1500,
-                  'baseUrl': 'http://localhost:8080',
-                  'token': '',
-                },
+                MaterialPageRoute(
+                  builder: (_) =>
+                      SendPaymentScreen(method: method['id'] as String),
+                ),
               );
             },
             child: Container(

@@ -5,6 +5,7 @@ import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/auth_service.dart';
 
 import '../../../core/theme/spacing.dart';
+import '../../components/inputs/phone_field.dart';
 
 /// Account recovery: verify email + registered phone, then set a new password.
 /// Works for both students and tutors (identity is role-agnostic).
@@ -115,8 +116,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   _field(context, 'Email', _emailCtrl,
                       keyboardType: TextInputType.emailAddress),
                   const SizedBox(height: AppSpacing.s16),
-                  _field(context, 'Registered Phone Number', _phoneCtrl,
-                      keyboardType: TextInputType.phone),
+                  Text('Registered Phone Number',
+                      style: theme.textTheme.bodyLarge),
+                  const SizedBox(height: 6),
+                  PhoneField(controller: _phoneCtrl),
                   const SizedBox(height: AppSpacing.s16),
                   _field(context, 'New Password', _passwordCtrl,
                       obscure: _obscure,

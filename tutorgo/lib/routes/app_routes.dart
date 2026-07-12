@@ -38,6 +38,7 @@ class AppRoutes {
   static const studentSubscription = "/student_subscription";
   static const studentDeleteAccount = "/student_delete_account";
   static const deleteAccount = "/delete_account";
+  static const studentTasks = "/student_tasks";
   static const studentViewAllTutors = "/student_view_all_tutors";
 
   // PROFILE MODULE

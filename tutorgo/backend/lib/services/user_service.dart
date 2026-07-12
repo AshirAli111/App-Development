@@ -23,16 +23,25 @@ class UserService {
       where.eq('_id', ObjectId.fromHexString(userId)),
     );
     if (doc == null) return null;
-    return UserModel.fromMap(doc).toPublicMap();
+    // Return the raw document (minus password) so extra sub-fields added via
+    // updateProfile (e.g. tutorProfile.payoutAccount, studentProfile.selectedCourses)
+    // are not stripped by the fixed-shape UserModel.
+    final map = Map<String, dynamic>.from(doc);
+    map.remove('password');
+    if (map['_id'] != null) {
+      map['id'] = (map['_id'] as ObjectId).oid;
+      map.remove('_id');
+    }
+    return map;
   }
 
   Future<Map<String, dynamic>?> updateUser(
     String userId,
     Map<String, dynamic> updates,
   ) async {
-    // Remove fields that shouldn't be updated directly
+    // Remove fields that shouldn't be updated directly. Email IS allowed
+    // (account recovery / editable email); duplicates are caught by the route.
     updates.remove('_id');
-    updates.remove('email');
     updates.remove('password');
     updates.remove('role');
     updates.remove('createdAt');

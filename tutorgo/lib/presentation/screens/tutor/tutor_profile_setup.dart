@@ -10,6 +10,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import 'package:next_step_learning/core/theme/colors.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/typography.dart';
+import 'package:next_step_learning/presentation/components/inputs/phone_field.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
 class TutorProfileSetup extends StatefulWidget {
@@ -341,11 +342,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(hintText: "Phone Number"),
-              ),
+              PhoneField(controller: _phoneController),
               const SizedBox(height: AppSpacing.s16),
 
               DropdownButtonFormField<String>(
