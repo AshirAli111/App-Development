@@ -1,25 +1,47 @@
+import 'package:dbcrypt/dbcrypt.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import '../config/database.dart';
 import '../models/user_model.dart';
 
 class UserService {
+  final _dbcrypt = DBCrypt();
+
   DbCollection get _users => Database.instance.collection('users');
+
+  /// Verifies a plaintext password against the user's stored bcrypt hash.
+  Future<bool> verifyPassword(String userId, String password) async {
+    final doc = await _users.findOne(
+      where.eq('_id', ObjectId.fromHexString(userId)),
+    );
+    final hash = doc?['password'] as String?;
+    if (hash == null) return false;
+    return _dbcrypt.checkpw(password, hash);
+  }
 
   Future<Map<String, dynamic>?> getUserById(String userId) async {
     final doc = await _users.findOne(
       where.eq('_id', ObjectId.fromHexString(userId)),
     );
     if (doc == null) return null;
-    return UserModel.fromMap(doc).toPublicMap();
+    // Return the raw document (minus password) so extra sub-fields added via
+    // updateProfile (e.g. tutorProfile.payoutAccount, studentProfile.selectedCourses)
+    // are not stripped by the fixed-shape UserModel.
+    final map = Map<String, dynamic>.from(doc);
+    map.remove('password');
+    if (map['_id'] != null) {
+      map['id'] = (map['_id'] as ObjectId).oid;
+      map.remove('_id');
+    }
+    return map;
   }
 
   Future<Map<String, dynamic>?> updateUser(
     String userId,
     Map<String, dynamic> updates,
   ) async {
-    // Remove fields that shouldn't be updated directly
+    // Remove fields that shouldn't be updated directly. Email IS allowed
+    // (account recovery / editable email); duplicates are caught by the route.
     updates.remove('_id');
-    updates.remove('email');
     updates.remove('password');
     updates.remove('role');
     updates.remove('createdAt');

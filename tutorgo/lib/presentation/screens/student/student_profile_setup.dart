@@ -9,10 +9,23 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/constants/courses.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
+import '../../components/inputs/phone_field.dart';
 import '../../../routes/app_routes.dart';
 
 class StudentProfileSetup extends StatefulWidget {
-  const StudentProfileSetup({super.key});
+  /// Credentials carried from the Register screen. The account is created only
+  /// when the profile is completed (deferred registration). Null when the user
+  /// is already signed in.
+  final String? name;
+  final String? email;
+  final String? password;
+
+  const StudentProfileSetup({
+    super.key,
+    this.name,
+    this.email,
+    this.password,
+  });
 
   @override
   State<StudentProfileSetup> createState() => _StudentProfileSetupState();
@@ -27,8 +40,10 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _ageController = TextEditingController();
-  final _gradeController = TextEditingController();
   final _addressController = TextEditingController();
+
+  static const _grades = ['Matriculation', 'College', 'Bachelors', 'Masters'];
+  String? _grade;
 
   final List<String> courses = kCourses;
 
@@ -37,10 +52,10 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
   @override
   void initState() {
     super.initState();
-    // Pre-fill email and name from auth
+    // Pre-fill from the register step (deferred signup) or from auth.
     final auth = context.read<AuthProvider>();
-    _emailController.text = auth.email;
-    _nameController.text = auth.fullName;
+    _emailController.text = widget.email ?? auth.email;
+    _nameController.text = widget.name ?? auth.fullName;
   }
 
   @override
@@ -49,7 +64,6 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     _emailController.dispose();
     _phoneController.dispose();
     _ageController.dispose();
-    _gradeController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -78,11 +92,44 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     return base64Encode(bytes);
   }
 
+  String? _missingField() {
+    if (_nameController.text.trim().isEmpty) return 'Full Name';
+    if (_phoneController.text.trim().isEmpty) return 'Phone Number';
+    if (_ageController.text.trim().isEmpty) return 'Age';
+    if (_grade == null || _grade!.isEmpty) return 'Grade / Class';
+    if (selectedCourses.isEmpty) return 'at least one interest';
+    return null;
+  }
+
   Future<void> _handleContinue() async {
+    // Don't create the account until every required field is filled.
+    final missing = _missingField();
+    if (missing != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please provide: $missing'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final auth = context.read<AuthProvider>();
+
+      // Deferred signup: create the account now that the profile is complete.
+      if (widget.email != null && widget.password != null) {
+        await auth.register(
+          email: widget.email!,
+          password: widget.password!,
+          fullName: _nameController.text.trim(),
+          role: 'student',
+          phone: _phoneController.text.trim(),
+        );
+      }
+
       final userService = UserService(
         baseUrl: auth.baseUrl,
         token: auth.accessToken,
@@ -93,7 +140,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
         'fullName': _nameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'studentProfile': {
-          'grade': _gradeController.text.trim(),
+          'grade': _grade ?? '',
           'selectedCourses': selectedCourses,
           'age': int.tryParse(_ageController.text.trim()),
           'address': _addressController.text.trim(),
@@ -130,6 +177,16 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).iconTheme.color),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -201,14 +258,17 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                     controller: _emailController,
                     keyboard: TextInputType.emailAddress,
                     enabled: false),
-                _input(context, "Phone Number", 580,
-                    controller: _phoneController,
-                    keyboard: TextInputType.phone),
+                FadeIn(
+                  delay: 580,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
+                    child: PhoneField(controller: _phoneController),
+                  ),
+                ),
                 _input(context, "Age", 600,
                     controller: _ageController,
                     keyboard: TextInputType.number),
-                _input(context, "Grade / Class", 650,
-                    controller: _gradeController),
+                _gradeDropdown(context, 650),
                 _input(context, "Address (Optional)", 700,
                     controller: _addressController),
 
@@ -319,6 +379,41 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
                 SizedBox(height: SizeConfig.h(30)),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _gradeDropdown(BuildContext context, int delay) {
+    return FadeIn(
+      delay: delay,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
+        child: DropdownButtonFormField<String>(
+          initialValue: _grade,
+          isExpanded: true,
+          hint: const Text('Grade / Class'),
+          items: _grades
+              .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+              .toList(),
+          onChanged: (v) => setState(() => _grade = v),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Theme.of(context).cardColor,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Theme.of(context).dividerColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide:
+                  BorderSide(color: Theme.of(context).colorScheme.primary),
             ),
           ),
         ),

@@ -10,10 +10,22 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import 'package:next_step_learning/core/theme/colors.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/typography.dart';
+import 'package:next_step_learning/presentation/components/inputs/phone_field.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
 class TutorProfileSetup extends StatefulWidget {
-  const TutorProfileSetup({super.key});
+  /// Credentials carried from the Register screen (deferred signup). The account
+  /// is created only when the profile — including documents — is completed.
+  final String? name;
+  final String? email;
+  final String? password;
+
+  const TutorProfileSetup({
+    super.key,
+    this.name,
+    this.email,
+    this.password,
+  });
 
   @override
   State<TutorProfileSetup> createState() => _TutorProfileSetupState();
@@ -32,8 +44,13 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _experienceController = TextEditingController();
-  final _qualificationController = TextEditingController();
+
+  static const _experienceOptions = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '10+'
+  ];
+  static const _qualificationOptions = ['Bachelors', 'Masters', 'PhD'];
+  String? _experience;
+  String? _qualification;
 
   final picker = ImagePicker();
 
@@ -55,8 +72,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   void initState() {
     super.initState();
     final auth = context.read<AuthProvider>();
-    _emailController.text = auth.email;
-    _nameController.text = auth.fullName;
+    _emailController.text = widget.email ?? auth.email;
+    _nameController.text = widget.name ?? auth.fullName;
   }
 
   @override
@@ -64,8 +81,6 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     _nameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _experienceController.dispose();
-    _qualificationController.dispose();
     super.dispose();
   }
 
@@ -103,10 +118,37 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   }
 
   Future<void> _handleContinue() async {
+    // Tutors must upload every required document to create an account.
+    if (cnicFront == null ||
+        cnicBack == null ||
+        certificateFile == null ||
+        degreeFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Please upload all documents (CNIC front & back, teaching certificate, degree) to continue.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
       final auth = context.read<AuthProvider>();
+
+      // Deferred signup: create the account now that the profile is complete.
+      if (widget.email != null && widget.password != null) {
+        await auth.register(
+          email: widget.email!,
+          password: widget.password!,
+          fullName: _nameController.text.trim(),
+          role: 'tutor',
+          phone: _phoneController.text.trim(),
+        );
+      }
+
       final userService = UserService(
         baseUrl: auth.baseUrl,
         token: auth.accessToken,
@@ -114,30 +156,21 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       );
 
       // Build documents map from picked files
-      final documents = <String, dynamic>{};
-      if (cnicFront != null) {
-        documents['cnicFront'] = await _fileToBase64(cnicFront);
-      }
-      if (cnicBack != null) {
-        documents['cnicBack'] = await _fileToBase64(cnicBack);
-      }
-      if (certificateFile != null) {
-        documents['teachingCertificate'] = await _fileToBase64(certificateFile);
-      }
-      if (degreeFile != null) {
-        documents['degree'] = await _fileToBase64(degreeFile);
-      }
+      final documents = <String, dynamic>{
+        'cnicFront': await _fileToBase64(cnicFront),
+        'cnicBack': await _fileToBase64(cnicBack),
+        'teachingCertificate': await _fileToBase64(certificateFile),
+        'degree': await _fileToBase64(degreeFile),
+      };
 
       final tutorProfile = <String, dynamic>{
         'subjects': selectedSubjects,
-        'experienceYears':
-            int.tryParse(_experienceController.text.trim()) ?? 0,
-        'qualification': _qualificationController.text.trim(),
+        'experienceYears': _experience == '10+'
+            ? 10
+            : int.tryParse(_experience ?? '') ?? 0,
+        'qualification': _qualification ?? '',
+        'documents': documents,
       };
-
-      if (documents.isNotEmpty) {
-        tutorProfile['documents'] = documents;
-      }
 
       final profileData = <String, dynamic>{
         'fullName': _nameController.text.trim(),
@@ -236,6 +269,16 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       backgroundColor: Theme.of(context).brightness == Brightness.dark
           ? Theme.of(context).scaffoldBackgroundColor
           : AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back,
+              color: Theme.of(context).iconTheme.color),
+          tooltip: 'Back',
+          onPressed: () => Navigator.pop(context),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
@@ -299,24 +342,31 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(hintText: "Phone Number"),
+              PhoneField(controller: _phoneController),
+              const SizedBox(height: AppSpacing.s16),
+
+              DropdownButtonFormField<String>(
+                initialValue: _experience,
+                isExpanded: true,
+                hint: const Text("Experience (years)"),
+                items: _experienceOptions
+                    .map((e) => DropdownMenuItem(
+                          value: e,
+                          child: Text(e == '10+' ? '10+ years' : '$e years'),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _experience = v),
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _experienceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(hintText: "Experience (years)"),
-              ),
-              const SizedBox(height: AppSpacing.s16),
-
-              TextField(
-                controller: _qualificationController,
-                decoration:
-                    const InputDecoration(hintText: "Highest Qualification"),
+              DropdownButtonFormField<String>(
+                initialValue: _qualification,
+                isExpanded: true,
+                hint: const Text("Highest Qualification"),
+                items: _qualificationOptions
+                    .map((q) => DropdownMenuItem(value: q, child: Text(q)))
+                    .toList(),
+                onChanged: (v) => setState(() => _qualification = v),
               ),
 
               const SizedBox(height: AppSpacing.s32),

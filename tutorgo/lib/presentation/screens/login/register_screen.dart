@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:next_step_learning/data/providers/auth_provider.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
 import '../../../routes/app_routes.dart';
@@ -18,7 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _obscurePassword = true;
   String _selectedRole = 'student';
 
@@ -31,39 +29,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _handleRegister() async {
+  void _handleRegister() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    // Deferred signup: don't create the account yet — collect credentials and
+    // complete the profile first. The account is created on profile completion.
+    final route = _selectedRole == 'tutor'
+        ? AppRoutes.tutorSetup
+        : AppRoutes.studentSetup;
 
-    try {
-      final auth = context.read<AuthProvider>();
-      await auth.register(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        fullName: _fullNameController.text.trim(),
-        role: _selectedRole,
-      );
-
-      if (!mounted) return;
-
-      // Navigate to profile setup based on role
-      final route = _selectedRole == 'tutor'
-          ? AppRoutes.tutorSetup
-          : AppRoutes.studentSetup;
-
-      Navigator.pushNamedAndRemoveUntil(context, route, (_) => false);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    Navigator.pushNamed(context, route, arguments: {
+      'name': _fullNameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'password': _passwordController.text,
+      'role': _selectedRole,
+    });
   }
 
   @override

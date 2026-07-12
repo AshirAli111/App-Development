@@ -132,6 +132,12 @@ class _TutorProfileScreenState extends State<TutorProfileScreen> {
                         AppRoutes.contactSupport),
 
                     const SizedBox(height: AppSpacing.s32),
+
+                    _sectionTitle(context, "Account Management"),
+                    _menuTile(context, "Delete Account", LucideIcons.userMinus,
+                        AppRoutes.deleteAccount),
+
+                    const SizedBox(height: AppSpacing.s32),
                     _logoutButton(context),
                     const SizedBox(height: AppSpacing.s40),
                   ],

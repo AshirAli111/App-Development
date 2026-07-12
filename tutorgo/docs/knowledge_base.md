@@ -910,3 +910,81 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - **Windows/web**: no OS-toast implementation in the plugin → skipped; the **in-app banner**
   is the popup there. Real OS notifications fire on Android/iOS/macOS/Linux.
 - App-fully-closed push (FCM/APNs) is out of scope.
+
+---
+
+## 24. TICKET-11 — Forgot Password (account recovery)
+
+- No email server: identity is verified by **email + the phone stored on the account**, then
+  the user sets a new password. Role-agnostic (students & tutors).
+- Backend `POST /auth/reset-password` `{email, phone, newPassword}`: finds by email, checks
+  `phone` matches, bcrypt-hashes and saves. Generic error ("No account matches that email and
+  phone number") so it doesn't leak which field is wrong.
+- Frontend: `AuthService.resetPassword(...)`, `ForgotPasswordScreen` (route
+  `/forgot-password`), and a "Forgot Password?" link on the login screen.
+
+## 25. TICKET-12 — Deferred account creation + setup dropdowns
+
+- **Register no longer creates the account.** It collects name/email/password/role and
+  `pushNamed`s the setup route with those as `arguments`. The account is created only when the
+  profile is completed — the setup screen calls `auth.register(...)` then `updateProfile(...)`.
+  `app_pages` passes the args into `StudentProfileSetup` / `TutorProfileSetup` (optional
+  `name/email/password`; when null the screen assumes an already-signed-in user).
+- Because registration is deferred, the **email-uniqueness check happens at "Complete"**.
+- **Tutor setup**: Experience dropdown (1..10, "10+"); Qualification dropdown (Bachelors /
+  Masters / PhD); **all four documents required** (CNIC front/back, teaching certificate,
+  degree) before completion. **Student setup**: Grade/Class dropdown (Matriculation / College
+  / Bachelors / Masters). Both setups have an AppBar **back** arrow to return to Register.
+
+## 26. TICKET-13 — Password-confirmed delete + required student fields
+
+- **Delete account** (both roles): `DELETE /api/users/me` now requires `{password}` in the
+  body; backend `UserService.verifyPassword` checks it (bcrypt) before `deleteUser`. Wrong/
+  absent password → 401/400, nothing deleted. Frontend `UserService.deleteAccount(password)`
+  returns null on success or the error string. The (shared) delete screen adds a Yes/No confirm
+  and, on success, logs out → onboarding. Tutor profile gained a "Delete Account" tile
+  (route `/delete_account`, reuses `StudentDeleteAccountScreen`).
+- **Student setup validation**: Complete is blocked (with a "Please provide: X" message) until
+  Full Name, Phone, Age, Grade/Class, and ≥1 interest are provided (Address optional). Combined
+  with deferred registration, an incomplete student profile creates no account.
+
+---
+
+## 27. TICKET-14 — Quizzes & assignments
+
+Two backend collections (one doc per task, submission embedded): `quizzes`
+`{tutorId, studentId, title, subject, questions:[{text,options[],correctIndex}], submission}`
+and `assignments` `{tutorId, studentId, title, subject, description, submission:{fileBase64,
+fileName}, marks, feedback, gradedAt}`. Services/routes in `backend/lib/{services,routes}`.
+
+- **Quizzes (MCQ, auto-graded)**: `POST /api/quizzes`, `GET /api/quizzes` (role-scoped;
+  correct answers stripped for students), `POST /api/quizzes/{id}/submit` (auto score).
+- **Assignments (file upload)**: `POST /api/assignments`, `GET /api/assignments`,
+  `POST /api/assignments/{id}/submit` (base64 file), `PUT /api/assignments/{id}/grade`.
+- Frontend: `QuizService`, `AssignmentService`; tutor `CreateQuizScreen` / `CreateAssignmentScreen`
+  + grade dialog inside the (now stateful) `TutorStudentDetailScreen` (Message opens the chat,
+  real Session History, studentId passed through). Student sees tasks **on the Home dashboard**
+  ("Quizzes & Assignments", course + tutor labelled) — Take a quiz, Upload an assignment; also
+  `StudentTasksScreen`, `TakeQuizScreen`.
+- Also: Windows exe metadata (Runner.rc ProductName/FileDescription) set to NextStepLearning
+  (binary stays `tutorgo.exe`; an existing taskbar pin must be re-pinned to update its label).
+
+## 28. TICKET-15 — Proper payment (student → admin) & tutor payout
+
+- Student deposit: `POST /api/payments/deposit` `{amountPKR, method, senderName, senderAccount}`
+  → `deposits` collection. `SendPaymentScreen` collects amount + gateway (easypaisa/jazzcash/
+  bank_transfer/card), shows the admin destination account, validates sender details.
+- Tutor payout details saved to `tutorProfile.payoutAccount` via `updateProfile`
+  (`PayoutSettingsScreen`). No real gateway — flow is simulated but records the transaction.
+
+## 29. TICKET-16 — Banks, phone field, payout view/edit
+
+- `core/constants/banks.dart` (Pakistani banks) + `core/constants/country_codes.dart`.
+- `PhoneField` (`presentation/components/inputs/phone_field.dart`): country-code dropdown
+  (default +92) + digits-only, max-10 number; binds the full number (e.g. `+923001234567`) to
+  the passed controller. Used across setup/edit/forgot-password/payment/payout phone inputs.
+- Payout Settings: bank dropdown for Bank Transfer, phone for wallets. Payment Methods (tutor)
+  is view-only.
+- **Backend read-strip fix**: `getUserById` now returns the raw doc (minus password) instead of
+  round-tripping through `UserModel`, so extra sub-fields (`tutorProfile.payoutAccount`,
+  `studentProfile.selectedCourses`) survive; `updateUser` no longer strips `email`.

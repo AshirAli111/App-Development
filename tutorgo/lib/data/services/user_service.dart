@@ -79,11 +79,20 @@ class UserService {
     return null;
   }
 
-  Future<bool> deleteAccount() async {
+  /// Deletes the account after verifying [password]. Returns null on success,
+  /// or an error message (e.g. wrong password) on failure.
+  Future<String?> deleteAccount(String password) async {
     final response = await http.delete(
       Uri.parse('$baseUrl/api/users/me'),
       headers: _headers,
+      body: jsonEncode({'password': password}),
     );
-    return response.statusCode == 200;
+    if (response.statusCode == 200) return null;
+    try {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['error'] ?? 'Failed to delete account').toString();
+    } catch (_) {
+      return 'Failed to delete account';
+    }
   }
 }

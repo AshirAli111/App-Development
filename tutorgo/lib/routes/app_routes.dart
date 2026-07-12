@@ -3,6 +3,7 @@ class AppRoutes {
   static const onboarding = '/onboarding';
   static const login = '/login';
   static const register = '/register';
+  static const forgotPassword = '/forgot-password';
   static const roleSelection = '/role-selection';
 
   static const studentSetup = '/student-setup';
@@ -36,6 +37,8 @@ class AppRoutes {
   static const studentPayments = "/student_payment_methods";
   static const studentSubscription = "/student_subscription";
   static const studentDeleteAccount = "/student_delete_account";
+  static const deleteAccount = "/delete_account";
+  static const studentTasks = "/student_tasks";
   static const studentViewAllTutors = "/student_view_all_tutors";
 
   // PROFILE MODULE

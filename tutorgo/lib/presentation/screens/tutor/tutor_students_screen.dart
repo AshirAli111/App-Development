@@ -44,6 +44,7 @@ class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
       final studentName = s['studentName'] as String? ?? 'Student';
       if (studentId.isNotEmpty && !studentMap.containsKey(studentId)) {
         studentMap[studentId] = {
+          'id': studentId,
           'name': studentName,
           'subject': s['subject'] ?? '',
           'status': s['status'] ?? '',
@@ -109,11 +110,9 @@ class _TutorStudentsScreenState extends State<TutorStudentsScreen> {
           context,
           AppRoutes.tutorStudentDetails,
           arguments: {
+            "studentId": student['id'],
             "name": student['name'],
             "grade": student['subject'],
-            "progress": 0.0,
-            "assignments": 0,
-            "lastSession": "Active",
             "image": student['image'],
           },
         );

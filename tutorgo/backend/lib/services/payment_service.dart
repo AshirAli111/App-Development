@@ -4,6 +4,29 @@ import '../models/payment_model.dart';
 
 class PaymentService {
   DbCollection get _payments => Database.instance.collection('payments');
+  DbCollection get _deposits => Database.instance.collection('deposits');
+
+  /// Records a student's deposit to the platform (admin) account. Simulated —
+  /// no real gateway — but the sender details are captured.
+  Future<Map<String, dynamic>> createDeposit({
+    required String studentId,
+    required int amountPKR,
+    required String method,
+    required String senderName,
+    required String senderAccount,
+  }) async {
+    final doc = <String, dynamic>{
+      'studentId': ObjectId.fromHexString(studentId),
+      'amountPKR': amountPKR,
+      'method': method,
+      'senderName': senderName,
+      'senderAccount': senderAccount,
+      'status': 'paid',
+      'createdAt': DateTime.now(),
+    };
+    final res = await _deposits.insertOne(doc);
+    return {...doc, '_id': res.id};
+  }
 
   Future<Map<String, dynamic>> createPayment({
     required String studentId,

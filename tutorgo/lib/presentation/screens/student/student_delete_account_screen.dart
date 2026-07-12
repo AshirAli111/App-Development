@@ -26,7 +26,8 @@ class _StudentDeleteAccountScreenState
   }
 
   Future<void> _handleDelete() async {
-    if (_passwordController.text.isEmpty) {
+    final password = _passwordController.text;
+    if (password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please enter your password to confirm'),
@@ -35,6 +36,31 @@ class _StudentDeleteAccountScreenState
       );
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete account?'),
+        content: const Text(
+            'This permanently deletes your account and all data. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Yes, delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isDeleting = true);
 
@@ -45,21 +71,19 @@ class _StudentDeleteAccountScreenState
       userId: auth.userId,
     );
 
-    final success = await userService.deleteAccount();
+    final error = await userService.deleteAccount(password);
 
     if (!mounted) return;
 
-    if (success) {
+    if (error == null) {
       await auth.logout();
       if (!mounted) return;
-      Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+      Navigator.pushNamedAndRemoveUntil(
+          context, AppRoutes.onboarding, (_) => false);
     } else {
       setState(() => _isDeleting = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to delete account'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
       );
     }
   }

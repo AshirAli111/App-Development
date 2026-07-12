@@ -12,8 +12,31 @@ class AuthRoutes {
     router.post('/register', _register);
     router.post('/login', _login);
     router.post('/refresh', _refresh);
+    router.post('/reset-password', _resetPassword);
 
     return router;
+  }
+
+  Future<Response> _resetPassword(Request request) async {
+    try {
+      final body = await parseBody(request);
+      final email = body['email'] as String?;
+      final phone = body['phone'] as String?;
+      final newPassword = body['newPassword'] as String?;
+
+      if (email == null || phone == null || newPassword == null) {
+        return errorResponse('email, phone, and newPassword are required');
+      }
+
+      final result = await _authService.resetPassword(
+        email: email,
+        phone: phone,
+        newPassword: newPassword,
+      );
+      return jsonResponse(result);
+    } on Exception catch (e) {
+      return errorResponse(e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   Future<Response> _register(Request request) async {

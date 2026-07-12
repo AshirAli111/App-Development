@@ -115,6 +115,39 @@ class AuthService {
     };
   }
 
+  /// Resets a user's password after verifying their email + registered phone.
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String phone,
+    required String newPassword,
+  }) async {
+    if (newPassword.length < 6) {
+      throw Exception('Password must be at least 6 characters');
+    }
+
+    final userDoc = await _users.findOne(where.eq('email', email.trim()));
+    // Generic message so we don't reveal which field was wrong.
+    const mismatch = 'No account matches that email and phone number';
+    if (userDoc == null) {
+      throw Exception(mismatch);
+    }
+
+    final user = UserModel.fromMap(userDoc);
+    final storedPhone = (user.phone ?? '').trim();
+    if (storedPhone.isEmpty || storedPhone != phone.trim()) {
+      throw Exception(mismatch);
+    }
+
+    await _users.updateOne(
+      where.eq('_id', user.id),
+      modify
+          .set('password', _hashPassword(newPassword))
+          .set('updatedAt', DateTime.now()),
+    );
+
+    return {'message': 'Password reset successful'};
+  }
+
   Future<Map<String, dynamic>> refreshToken(String token) async {
     try {
       final jwt = JWT.verify(token, SecretKey(Env.jwtSecret));

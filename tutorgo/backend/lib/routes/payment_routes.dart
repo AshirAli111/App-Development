@@ -11,10 +11,36 @@ class PaymentRoutes {
 
     router.get('/', _getPayments);
     router.post('/', _createPayment);
+    router.post('/deposit', _createDeposit);
     router.get('/summary', _getSummary);
     router.put('/<id>/status', _updateStatus);
 
     return router;
+  }
+
+  Future<Response> _createDeposit(Request request) async {
+    try {
+      final studentId = request.headers['x-user-id'];
+      if (studentId == null) {
+        return errorResponse('Unauthorized', statusCode: 401);
+      }
+      final body = await parseBody(request);
+      final amountPKR = body['amountPKR'] as int?;
+      final method = body['method'] as String?;
+      if (amountPKR == null || amountPKR <= 0 || method == null) {
+        return errorResponse('A positive amountPKR and method are required');
+      }
+      final deposit = await _paymentService.createDeposit(
+        studentId: studentId,
+        amountPKR: amountPKR,
+        method: method,
+        senderName: (body['senderName'] ?? '').toString(),
+        senderAccount: (body['senderAccount'] ?? '').toString(),
+      );
+      return jsonResponse(deposit, statusCode: 201);
+    } on Exception catch (e) {
+      return errorResponse(e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   Future<Response> _getPayments(Request request) async {

@@ -72,4 +72,27 @@ class PaymentService {
     }
     return null;
   }
+
+  /// Records a student deposit to the platform (admin) account.
+  Future<Map<String, dynamic>?> createDeposit({
+    required int amountPKR,
+    required String method,
+    required String senderName,
+    required String senderAccount,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/payments/deposit'),
+      headers: _headers,
+      body: jsonEncode({
+        'amountPKR': amountPKR,
+        'method': method,
+        'senderName': senderName,
+        'senderAccount': senderAccount,
+      }),
+    );
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    }
+    return null;
+  }
 }
