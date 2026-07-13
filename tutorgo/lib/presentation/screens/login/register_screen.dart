@@ -47,12 +47,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       if (!mounted) return;
 
-      // Navigate to profile setup based on role
+      // Navigate to profile setup based on role. Use pushReplacement (not
+      // removeUntil) so the setup screen keeps a screen beneath it and its
+      // back button works.
       final route = _selectedRole == 'tutor'
           ? AppRoutes.tutorSetup
           : AppRoutes.studentSetup;
 
-      Navigator.pushNamedAndRemoveUntil(context, route, (_) => false);
+      Navigator.pushReplacementNamed(context, route);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

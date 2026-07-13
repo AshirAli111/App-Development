@@ -168,7 +168,13 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.maybePop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacementNamed(context, AppRoutes.login);
+            }
+          },
         ),
       ),
       body: SafeArea(
