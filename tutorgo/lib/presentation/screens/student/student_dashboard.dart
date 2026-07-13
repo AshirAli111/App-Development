@@ -9,8 +9,6 @@ import '../../../core/theme/colors.dart';
 import '../../../core/theme/typography.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/image_utils.dart';
-import '../../../routes/app_routes.dart';
-import '../aichat/ai_chat_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -140,19 +138,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 ),
               ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: "ai_student_fab",
-        tooltip: "Ask AI Tutor",
-        onPressed: () {
-          Navigator.pushNamed(
-            context,
-            AppRoutes.aiChatScreen,
-            arguments: AiRole.student,
-          );
-        },
-        icon: const Icon(LucideIcons.sparkles),
-        label: const Text("AI Tutor"),
-      ),
+      // The AI Tutor FAB is provided by StudentNavbar (the shell) to avoid a
+      // duplicate Hero tag when this dashboard is embedded as a tab.
     );
   }
 
