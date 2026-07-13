@@ -359,6 +359,38 @@ static Future<bool> testConnection()
 - Connection testing
 - Helpful error messages for API issues
 
+### Tutor Document Validation (OCR content check)
+
+Verifies that documents uploaded during tutor profile setup (CNIC front/back,
+teaching certificate, degree) actually contain content matching their slot.
+
+**Backend:** `backend/lib/services/document_validation_service.dart`
+- **OCR (primary, active):** shells out to `tesseract` on the uploaded image,
+  then fuzzy-searches the extracted text for per-type keywords (e.g.
+  "pakistan"/"identity" for CNIC, "university"/"degree"/"bachelor" for a degree).
+  Any single keyword hit — exact substring or a small-edit-distance match to
+  tolerate OCR noise — passes; text read but no hint → rejected as invalid.
+- **Gemini (failover, commented out):** the multimodal `generateContent` path is
+  kept in the file but disabled. Intended final chain: Gemini primary → OCR
+  failover. Today OCR is the live check.
+- **Fail-open on OCR error:** missing/broken `tesseract`, a PDF it can't read, a
+  crash, or a timeout → the file is accepted so a local dependency issue never
+  blocks a genuine tutor.
+- **Dependency:** requires `tesseract` on the host (`brew install tesseract`).
+- `backend/lib/routes/document_routes.dart` — `POST /documents/verify`
+  `{ type, fileBase64, mimeType }`. **Public** (mounted like `/auth`, no token)
+  because tutor account creation is deferred until the end of profile setup.
+  Supported `type`: `cnicFront`, `cnicBack`, `teachingCertificate`, `degree`.
+
+**Frontend:**
+- `lib/data/services/document_validation_service.dart` — posts to
+  `$baseUrl/documents/verify`. **Fail-open**: on any network error the file is
+  accepted so an outage never blocks registration.
+- `TutorProfileSetup` restricts picks to `pdf, jpg, jpeg, png` (other extensions
+  rejected with "Only PDF or image files are allowed."), shows a per-document
+  spinner while verifying, and only accepts a file when `valid == true`;
+  otherwise shows "This document does not contain valid <label> content."
+
 ---
 
 ## 7. Data Models

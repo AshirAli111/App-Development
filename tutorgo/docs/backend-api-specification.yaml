@@ -21,6 +21,8 @@ tags:
     description: Server health check
   - name: Auth
     description: Authentication (public - no token required)
+  - name: Documents
+    description: AI verification of tutor registration documents (public - no token required)
   - name: Users
     description: User profile management
   - name: Sessions
@@ -221,6 +223,67 @@ paths:
                     type: string
         '400':
           description: Invalid/expired token or password too short
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
+  # DOCUMENTS (public — used during tutor profile setup)
+  # ─────────────────────────────────────────────
+  /documents/verify:
+    post:
+      tags: [Documents]
+      summary: Verify a tutor registration document with OCR
+      description: >
+        Public endpoint (no auth) used during tutor profile setup, before the
+        account is created. Runs OCR (tesseract) on the uploaded image and
+        fuzzy-searches the extracted text for keywords specific to the document
+        type. Any keyword hint passes; readable text with no hint is rejected as
+        invalid content. OCR failures (missing tesseract, PDF, crash, timeout)
+        fail open (valid:true) so a local dependency issue never blocks a genuine
+        registration. A Gemini AI path exists in the service but is disabled for
+        now. Callers should also treat a non-200 response as fail-open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, fileBase64, mimeType]
+              properties:
+                type:
+                  type: string
+                  description: Which document slot the file was uploaded into.
+                  enum: [cnicFront, cnicBack, teachingCertificate, degree]
+                fileBase64:
+                  type: string
+                  description: Base64-encoded file bytes (PDF or image).
+                mimeType:
+                  type: string
+                  example: application/pdf
+      responses:
+        '200':
+          description: Verification verdict
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    description: Whether the content matches the document type.
+                  reason:
+                    type: string
+                    description: Short human-readable explanation.
+        '400':
+          description: Missing/invalid field or unsupported document type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: AI service error (client should fail-open)
           content:
             application/json:
               schema:

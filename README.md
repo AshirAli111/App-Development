@@ -15,6 +15,7 @@ AI-powered tutoring platform connecting students with tutors. Built with Flutter
 | CocoaPods | Latest | `pod --version` | macOS only |
 | Visual Studio | 2022+ with C++ Desktop workload | For Windows desktop | Windows only |
 | Git | Any | `git --version` | All |
+| Tesseract OCR | 5+ | `tesseract --version` | Backend host only (`brew install tesseract`) — used to validate tutor documents |
 
 ---
 

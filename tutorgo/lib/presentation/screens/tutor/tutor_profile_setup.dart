@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:next_step_learning/data/providers/auth_provider.dart';
 import 'package:next_step_learning/data/services/user_service.dart';
+import 'package:next_step_learning/data/services/document_validation_service.dart';
 
 import 'package:next_step_learning/core/theme/colors.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
@@ -40,6 +41,11 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
   List<String> selectedSubjects = [];
   bool _isLoading = false;
+
+  /// Document slots currently being verified by the AI (keyed by doc type).
+  final Set<String> _verifying = {};
+
+  static const Set<String> _allowedExtensions = {'pdf', 'jpg', 'jpeg', 'png'};
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
@@ -87,16 +93,59 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     super.dispose();
   }
 
-  Future<File?> pickFile() async {
+  /// Picks a document, enforces PDF/image-only, verifies its content with the
+  /// AI, and applies it via [onValid] only if the content matches [docType].
+  ///
+  /// [docType] is one of `cnicFront`, `cnicBack`, `teachingCertificate`,
+  /// `degree`. [label] is the human name shown in messages.
+  Future<void> pickAndVerifyDocument({
+    required String docType,
+    required String label,
+    required void Function(File) onValid,
+  }) async {
+    // Capture the base URL before any async gap so we don't touch `context`
+    // after awaiting.
+    final baseUrl = context.read<AuthProvider>().baseUrl;
+
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: false,
-      type: FileType.any,
+      type: FileType.custom,
+      allowedExtensions: _allowedExtensions.toList(),
     );
 
-    if (result != null && result.files.single.path != null) {
-      return File(result.files.single.path!);
+    final path = result?.files.single.path;
+    if (path == null) return;
+
+    // Guard: file_picker's extension filter is best-effort on some platforms,
+    // so re-check the extension ourselves.
+    final ext = path.split('.').last.toLowerCase();
+    if (!_allowedExtensions.contains(ext)) {
+      _showError('Only PDF or image files are allowed.');
+      return;
     }
-    return null;
+
+    final file = File(path);
+    setState(() => _verifying.add(docType));
+
+    try {
+      final validator = DocumentValidationService(baseUrl: baseUrl);
+      final res = await validator.validate(file: file, type: docType);
+
+      if (!mounted) return;
+      if (res.valid) {
+        onValid(file);
+      } else {
+        _showError('This document does not contain valid $label content.');
+      }
+    } finally {
+      if (mounted) setState(() => _verifying.remove(docType));
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Future pickProfileImage() async {
@@ -275,7 +324,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     );
   }
 
-  Widget uploadButton(String label) {
+  Widget uploadButton(String label, {bool isVerifying = false}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(AppSpacing.s16),
@@ -285,11 +334,23 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.upload_file_rounded, color: AppColors.textMedium),
+          if (isVerifying)
+            const SizedBox(
+              height: 22,
+              width: 22,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.textMedium,
+              ),
+            )
+          else
+            const Icon(Icons.upload_file_rounded, color: AppColors.textMedium),
           const SizedBox(width: AppSpacing.s12),
-          Text(
-            label,
-            style: AppTypography.body16.copyWith(fontWeight: FontWeight.w600),
+          Expanded(
+            child: Text(
+              isVerifying ? 'Verifying document…' : label,
+              style: AppTypography.body16.copyWith(fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -412,42 +473,66 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               const SizedBox(height: AppSpacing.s16),
 
               GestureDetector(
-                onTap: () async {
-                  final file = await pickFile();
-                  if (file != null) setState(() => cnicFront = file);
-                },
-                child: uploadButton("Upload CNIC Front"),
+                onTap: _verifying.contains('cnicFront')
+                    ? null
+                    : () => pickAndVerifyDocument(
+                          docType: 'cnicFront',
+                          label: 'CNIC (front)',
+                          onValid: (f) => setState(() => cnicFront = f),
+                        ),
+                child: uploadButton(
+                  "Upload CNIC Front",
+                  isVerifying: _verifying.contains('cnicFront'),
+                ),
               ),
               if (cnicFront != null) buildUploadedCard("CNIC Front", cnicFront!),
               const SizedBox(height: AppSpacing.s16),
 
               GestureDetector(
-                onTap: () async {
-                  final file = await pickFile();
-                  if (file != null) setState(() => cnicBack = file);
-                },
-                child: uploadButton("Upload CNIC Back"),
+                onTap: _verifying.contains('cnicBack')
+                    ? null
+                    : () => pickAndVerifyDocument(
+                          docType: 'cnicBack',
+                          label: 'CNIC (back)',
+                          onValid: (f) => setState(() => cnicBack = f),
+                        ),
+                child: uploadButton(
+                  "Upload CNIC Back",
+                  isVerifying: _verifying.contains('cnicBack'),
+                ),
               ),
               if (cnicBack != null) buildUploadedCard("CNIC Back", cnicBack!),
               const SizedBox(height: AppSpacing.s16),
 
               GestureDetector(
-                onTap: () async {
-                  final file = await pickFile();
-                  if (file != null) setState(() => certificateFile = file);
-                },
-                child: uploadButton("Upload Teaching Certificate"),
+                onTap: _verifying.contains('teachingCertificate')
+                    ? null
+                    : () => pickAndVerifyDocument(
+                          docType: 'teachingCertificate',
+                          label: 'teaching certificate',
+                          onValid: (f) => setState(() => certificateFile = f),
+                        ),
+                child: uploadButton(
+                  "Upload Teaching Certificate",
+                  isVerifying: _verifying.contains('teachingCertificate'),
+                ),
               ),
               if (certificateFile != null)
                 buildUploadedCard("Certificate", certificateFile!),
               const SizedBox(height: AppSpacing.s16),
 
               GestureDetector(
-                onTap: () async {
-                  final file = await pickFile();
-                  if (file != null) setState(() => degreeFile = file);
-                },
-                child: uploadButton("Upload Degree"),
+                onTap: _verifying.contains('degree')
+                    ? null
+                    : () => pickAndVerifyDocument(
+                          docType: 'degree',
+                          label: 'degree',
+                          onValid: (f) => setState(() => degreeFile = f),
+                        ),
+                child: uploadButton(
+                  "Upload Degree",
+                  isVerifying: _verifying.contains('degree'),
+                ),
               ),
               if (degreeFile != null) buildUploadedCard("Degree", degreeFile!),
 

@@ -7,6 +7,7 @@ import 'package:tutorgo_backend/config/database.dart';
 import 'package:tutorgo_backend/config/env.dart';
 import 'package:tutorgo_backend/middleware/auth_middleware.dart';
 import 'package:tutorgo_backend/routes/auth_routes.dart';
+import 'package:tutorgo_backend/routes/document_routes.dart';
 import 'package:tutorgo_backend/routes/user_routes.dart';
 import 'package:tutorgo_backend/routes/session_routes.dart';
 import 'package:tutorgo_backend/routes/chat_routes.dart';
@@ -32,6 +33,9 @@ void main() async {
 
   // Public routes (no auth required)
   app.mount('/auth/', AuthRoutes().router.call);
+  // Document validation is public: tutors verify documents during profile setup
+  // before their account (and token) is created.
+  app.mount('/documents/', DocumentRoutes().router.call);
 
   // Protected routes (auth required)
   final protectedRouter = Router();
