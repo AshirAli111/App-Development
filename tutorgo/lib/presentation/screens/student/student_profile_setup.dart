@@ -28,8 +28,14 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
   final _emailController = TextEditingController();
   String _phone = '';
   final _ageController = TextEditingController();
-  final _gradeController = TextEditingController();
+  String? _education;
   final _addressController = TextEditingController();
+
+  static const List<String> _educationOptions = [
+    'Matriculation',
+    'Intermediate (College)',
+    "Bachelor's Degree",
+  ];
 
   final List<String> courses = kCourses;
 
@@ -49,7 +55,6 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     _nameController.dispose();
     _emailController.dispose();
     _ageController.dispose();
-    _gradeController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -78,7 +83,35 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
     return base64Encode(bytes);
   }
 
+  int _phoneDigitCount() {
+    final parts = _phone.trim().split(' ');
+    final national = parts.length > 1 ? parts.last : '';
+    return national.replaceAll(RegExp(r'\D'), '').length;
+  }
+
+  String? _validate() {
+    if (_nameController.text.trim().isEmpty) return 'Please enter your full name';
+    if (_phoneDigitCount() != 10) {
+      return 'Please enter a valid 10-digit phone number';
+    }
+    final age = int.tryParse(_ageController.text.trim());
+    if (age == null || age <= 0) return 'Please enter a valid age';
+    if (_education == null) return 'Please select your education level';
+    if (selectedCourses.isEmpty) {
+      return 'Please select at least one course';
+    }
+    return null;
+  }
+
   Future<void> _handleContinue() async {
+    final error = _validate();
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -93,7 +126,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
         'fullName': _nameController.text.trim(),
         'phone': _phone.trim(),
         'studentProfile': {
-          'grade': _gradeController.text.trim(),
+          'grade': _education,
           'selectedCourses': selectedCourses,
           'age': int.tryParse(_ageController.text.trim()),
           'address': _addressController.text.trim(),
@@ -130,6 +163,14 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
@@ -213,8 +254,41 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                 _input(context, "Age", 600,
                     controller: _ageController,
                     keyboard: TextInputType.number),
-                _input(context, "Grade / Class", 650,
-                    controller: _gradeController),
+                FadeIn(
+                  delay: 650,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _education,
+                      isExpanded: true,
+                      hint: const Text("Education"),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Theme.of(context).cardColor,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                              color: Theme.of(context).dividerColor),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                              color: Theme.of(context).dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: BorderSide(
+                              color: Theme.of(context).colorScheme.primary),
+                        ),
+                      ),
+                      items: _educationOptions
+                          .map((e) =>
+                              DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _education = v),
+                    ),
+                  ),
+                ),
                 _input(context, "Address (Optional)", 700,
                     controller: _addressController),
 

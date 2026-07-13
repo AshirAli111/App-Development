@@ -985,3 +985,15 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - **Enter to send**: a `Focus.onKeyEvent` sends on Enter; Shift+Enter = newline.
 - **Robustness**: `parseBody` uses `utf8.decode(bytes, allowMalformed: true)`; the OpenRouter
   reply is fully buffered before decoding (avoids multi-byte-split `FormatException`).
+
+## 26. TICKET-14 — Profile-setup validation + dropdowns
+- Both setup screens now block "Continue" (red snackbar) if a required field is empty.
+- **Tutor**: Experience = dropdown `1..10` + `10+` (`10+` stored as `experienceYears` 10);
+  Qualification = dropdown `Bachelor's Degree` / `Master's Degree` / `PhD`. Required: name,
+  10-digit phone, experience, qualification, ≥1 subject, CNIC front+back, teaching certificate.
+- **Student**: Grade/Class replaced by **Education** dropdown `Matriculation` /
+  `Intermediate (College)` / `Bachelor's Degree` (stored as `studentProfile.grade`).
+  Required: name, 10-digit phone, age, education, ≥1 course. Address stays optional.
+- Phone validity = national part has exactly 10 digits (from `PhoneNumberField`'s composed value).
+- Both setup screens have a **back button** (transparent AppBar → `Navigator.maybePop`) to
+  return to role selection.

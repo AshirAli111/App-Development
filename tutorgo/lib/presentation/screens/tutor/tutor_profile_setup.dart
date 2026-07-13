@@ -33,8 +33,17 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   String _phone = '';
-  final _experienceController = TextEditingController();
-  final _qualificationController = TextEditingController();
+  String? _experience;
+  String? _qualification;
+
+  static const List<String> _experienceOptions = [
+    '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '10+',
+  ];
+  static const List<String> _qualificationOptions = [
+    "Bachelor's Degree",
+    "Master's Degree",
+    'PhD',
+  ];
 
   final picker = ImagePicker();
 
@@ -64,8 +73,6 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _experienceController.dispose();
-    _qualificationController.dispose();
     super.dispose();
   }
 
@@ -102,7 +109,38 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
     return base64Encode(bytes);
   }
 
+  /// Count of digits in the national part of the phone (after the dial code).
+  int _phoneDigitCount() {
+    final parts = _phone.trim().split(' ');
+    final national = parts.length > 1 ? parts.last : '';
+    return national.replaceAll(RegExp(r'\D'), '').length;
+  }
+
+  String? _validate() {
+    if (_nameController.text.trim().isEmpty) return 'Please enter your full name';
+    if (_phoneDigitCount() != 10) {
+      return 'Please enter a valid 10-digit phone number';
+    }
+    if (_experience == null) return 'Please select your experience';
+    if (_qualification == null) return 'Please select your qualification';
+    if (selectedSubjects.isEmpty) return 'Please select at least one subject';
+    if (cnicFront == null) return 'Please upload your CNIC (front)';
+    if (cnicBack == null) return 'Please upload your CNIC (back)';
+    if (certificateFile == null) {
+      return 'Please upload your teaching certificate';
+    }
+    return null;
+  }
+
   Future<void> _handleContinue() async {
+    final error = _validate();
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -131,8 +169,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       final tutorProfile = <String, dynamic>{
         'subjects': selectedSubjects,
         'experienceYears':
-            int.tryParse(_experienceController.text.trim()) ?? 0,
-        'qualification': _qualificationController.text.trim(),
+            _experience == '10+' ? 10 : int.tryParse(_experience ?? '') ?? 0,
+        'qualification': _qualification,
       };
 
       if (documents.isNotEmpty) {
@@ -236,6 +274,14 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       backgroundColor: Theme.of(context).brightness == Brightness.dark
           ? Theme.of(context).scaffoldBackgroundColor
           : AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.s20),
@@ -304,17 +350,25 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _experienceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(hintText: "Experience (years)"),
+              DropdownButtonFormField<String>(
+                initialValue: _experience,
+                isExpanded: true,
+                hint: const Text("Experience (years)"),
+                items: _experienceOptions
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (v) => setState(() => _experience = v),
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _qualificationController,
-                decoration:
-                    const InputDecoration(hintText: "Highest Qualification"),
+              DropdownButtonFormField<String>(
+                initialValue: _qualification,
+                isExpanded: true,
+                hint: const Text("Highest Qualification"),
+                items: _qualificationOptions
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (v) => setState(() => _qualification = v),
               ),
 
               const SizedBox(height: AppSpacing.s32),
