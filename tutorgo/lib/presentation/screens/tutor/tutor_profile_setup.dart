@@ -113,12 +113,15 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       allowedExtensions: _allowedExtensions.toList(),
     );
 
-    final path = result?.files.single.path;
-    if (path == null) return;
+    final picked = result?.files.single;
+    final path = picked?.path;
+    if (picked == null || path == null) return;
 
     // Guard: file_picker's extension filter is best-effort on some platforms,
-    // so re-check the extension ourselves.
-    final ext = path.split('.').last.toLowerCase();
+    // so re-check ourselves. Derive the extension from the picker's own
+    // `extension`/`name` fields — the raw `path` is often a cached copy whose
+    // name has lost the original extension.
+    final ext = (picked.extension ?? picked.name.split('.').last).toLowerCase();
     if (!_allowedExtensions.contains(ext)) {
       _showError('Only PDF or image files are allowed.');
       return;
