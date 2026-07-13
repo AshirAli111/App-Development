@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:next_step_learning/presentation/screens/aichat/ai_chat_screen.dart';
 import 'package:next_step_learning/presentation/screens/splash/splash_screen.dart';
+import 'package:next_step_learning/presentation/screens/login/forgot_password_screen.dart';
 import 'package:next_step_learning/presentation/screens/login/register_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_chats_conversation_screen.dart';
 import 'package:next_step_learning/presentation/screens/student/student_dashboard.dart';
@@ -59,6 +60,9 @@ class AppPages {
 
       case AppRoutes.register:
         return _page(const RegisterScreen());
+
+      case AppRoutes.forgotPassword:
+        return _page(const ForgotPasswordScreen());
 
       case AppRoutes.roleSelection:
         return _page(const RoleSelectionScreen());

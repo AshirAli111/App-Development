@@ -6,6 +6,8 @@ import '../config/env.dart';
 import '../models/user_model.dart';
 
 class AuthService {
+  static const _resetTokenValidity = Duration(minutes: 15);
+
   final _dbcrypt = DBCrypt();
 
   DbCollection get _users => Database.instance.collection('users');
@@ -144,5 +146,66 @@ class AuthService {
     } on JWTExpiredException {
       throw Exception('Refresh token expired. Please login again.');
     }
+  }
+
+  /// Last 10 digits of a phone value, ignoring spaces, '+', and dial code.
+  /// So "+92 3001234567", "923001234567" and "3001234567" all compare equal.
+  String _phoneDigits(String? phone) {
+    final digits = (phone ?? '').replaceAll(RegExp(r'\D'), '');
+    return digits.length <= 10 ? digits : digits.substring(digits.length - 10);
+  }
+
+  /// Verifies a reset request using BOTH the account email and phone number.
+  /// No code/OTP is sent — if the two match a single account, a short-lived
+  /// reset token is returned so the caller can set a new password.
+  Future<Map<String, dynamic>> verifyIdentity({
+    required String email,
+    required String phone,
+  }) async {
+    final userDoc = await _users.findOne(where.eq('email', email.trim()));
+    if (userDoc == null) {
+      throw Exception('No account found with this email');
+    }
+
+    final storedDigits = _phoneDigits(userDoc['phone'] as String?);
+    final providedDigits = _phoneDigits(phone);
+    if (storedDigits.isEmpty || storedDigits != providedDigits) {
+      throw Exception('Email and phone number do not match our records');
+    }
+
+    final userId = userDoc['_id'] as ObjectId;
+    final resetToken = JWT({
+      'userId': userId.oid,
+      'purpose': 'password_reset',
+    }).sign(SecretKey(Env.jwtSecret), expiresIn: _resetTokenValidity);
+
+    return {'resetToken': resetToken};
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    Map<String, dynamic> payload;
+    try {
+      final jwt = JWT.verify(resetToken, SecretKey(Env.jwtSecret));
+      payload = jwt.payload as Map<String, dynamic>;
+    } on JWTExpiredException {
+      throw Exception('Reset session expired. Please start again.');
+    } on JWTException {
+      throw Exception('Invalid reset token');
+    }
+
+    if (payload['purpose'] != 'password_reset') {
+      throw Exception('Invalid reset token');
+    }
+
+    final userId = ObjectId.fromHexString(payload['userId'] as String);
+    await _users.updateOne(
+      where.eq('_id', userId),
+      modify.set('password', _hashPassword(newPassword)),
+    );
+
+    return {'message': 'Password updated successfully'};
   }
 }

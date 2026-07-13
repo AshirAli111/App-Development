@@ -910,3 +910,46 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - **Windows/web**: no OS-toast implementation in the plugin → skipped; the **in-app banner**
   is the popup there. Real OS notifications fire on Android/iOS/macOS/Linux.
 - App-fully-closed push (FCM/APNs) is out of scope.
+
+---
+
+## 23. TICKET-11 — Forgot password (email/phone OTP, demo delivery)
+
+### Flow (no emailed/SMS code)
+- Login screen has a **"Forgot password?"** link → `AppRoutes.forgotPassword`
+  (`ForgotPasswordScreen`, 2 in-page steps: email + phone → new password).
+- The user proves ownership by entering **both** the email and phone on their account —
+  there is **no OTP/code**. If both match, the reset screen appears immediately.
+- Backend adds 2 **public** routes under `/auth`:
+  - `POST /auth/verify-identity` `{email, phone}` — finds the account by email, compares
+    the stored vs supplied phone on the **last 10 digits** (ignores spaces/dial code). On
+    match returns a `resetToken` (JWT `purpose: password_reset`, 15 min). 404 otherwise.
+  - `POST /auth/reset-password` `{resetToken, newPassword}` — updates the bcrypt hash.
+- `authMiddleware` rejects any token carrying a `purpose` claim (or missing role/email),
+  so a reset token can't be used as an access token.
+
+## 24. TICKET-12 — Phone standardisation, tutor payout, student payment
+
+### Phone input (10 digits, all-country codes)
+- `PhoneNumberField` (`lib/presentation/widgets/phone_number_field.dart`) = dial-code
+  dropdown (`kCountryCodes`, default `+92`) + national field capped at **exactly 10 digits**
+  (`FilteringTextInputFormatter.digitsOnly` + `LengthLimitingTextInputFormatter(10)`).
+  Emits the composed `"+92 3001234567"` via `onChanged`; validates the 10-digit rule in a `Form`.
+- Applied in: tutor & student profile setup, student edit-profile, tutor payout add-account,
+  student payment sheet. **Use this widget for any new phone field.**
+
+### Tutor payout accounts
+- `UserModel.payoutAccount` (nullable Map, backend) round-trips via `GET/PUT /api/users/me`.
+  Shape: `{method, kind: bank|wallet, accountName, accountNumber?|phone?}`.
+- `PayoutSettingsScreen` is now stateful: loads the profile and shows **only** the saved
+  payout account (empty state if none). Add/Change opens a bottom sheet with a dropdown of
+  `kWallets` (EasyPaisa, JazzCash) + `kPakistaniBanks`; wallet → `PhoneNumberField`, bank →
+  account/IBAN field. (Removed the old hardcoded "Not Connected" rows.)
+
+### Student payment channels
+- `kPaymentChannels` (`lib/core/constants/banks.dart`) holds NextStepLearning's **receiving
+  accounts** per channel. **Pakistan-only:** EasyPaisa / JazzCash / Bank Transfer — the
+  Stripe card option was removed (this is a domestic app).
+- `StudentPaymentMethodsScreen`: tapping a channel opens a sheet showing the destination
+  account (copyable), an **Amount (PKR)** field, and the student's paying-account field
+  (wallet number via `PhoneNumberField`, or bank account number), then a confirmation.

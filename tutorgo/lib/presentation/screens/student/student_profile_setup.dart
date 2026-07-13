@@ -9,6 +9,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/constants/courses.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
+import '../../widgets/phone_number_field.dart';
 import '../../../routes/app_routes.dart';
 
 class StudentProfileSetup extends StatefulWidget {
@@ -25,7 +26,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  String _phone = '';
   final _ageController = TextEditingController();
   final _gradeController = TextEditingController();
   final _addressController = TextEditingController();
@@ -47,7 +48,6 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _ageController.dispose();
     _gradeController.dispose();
     _addressController.dispose();
@@ -91,7 +91,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
       final profileData = <String, dynamic>{
         'fullName': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phone': _phone.trim(),
         'studentProfile': {
           'grade': _gradeController.text.trim(),
           'selectedCourses': selectedCourses,
@@ -201,9 +201,15 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                     controller: _emailController,
                     keyboard: TextInputType.emailAddress,
                     enabled: false),
-                _input(context, "Phone Number", 580,
-                    controller: _phoneController,
-                    keyboard: TextInputType.phone),
+                FadeIn(
+                  delay: 580,
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: SizeConfig.h(20)),
+                    child: PhoneNumberField(
+                      onChanged: (value) => _phone = value,
+                    ),
+                  ),
+                ),
                 _input(context, "Age", 600,
                     controller: _ageController,
                     keyboard: TextInputType.number),

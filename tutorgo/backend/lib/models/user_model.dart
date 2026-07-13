@@ -125,6 +125,10 @@ class UserModel {
   final StudentProfile? studentProfile;
   final TutorProfile? tutorProfile;
 
+  /// Tutor's chosen payout destination (bank or wallet). Free-form so the
+  /// client owns the shape: { method, kind, accountName, accountNumber, phone }.
+  final Map<String, dynamic>? payoutAccount;
+
   UserModel({
     this.id,
     required this.role,
@@ -139,6 +143,7 @@ class UserModel {
     DateTime? updatedAt,
     this.studentProfile,
     this.tutorProfile,
+    this.payoutAccount,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -156,6 +161,7 @@ class UserModel {
     'updatedAt': updatedAt,
     'studentProfile': studentProfile?.toMap(),
     'tutorProfile': tutorProfile?.toMap(),
+    'payoutAccount': payoutAccount,
   };
 
   factory UserModel.fromMap(Map<String, dynamic> map) => UserModel(
@@ -179,6 +185,9 @@ class UserModel {
         : null,
     tutorProfile: map['tutorProfile'] != null
         ? TutorProfile.fromMap(map['tutorProfile'])
+        : null,
+    payoutAccount: map['payoutAccount'] != null
+        ? Map<String, dynamic>.from(map['payoutAccount'])
         : null,
   );
 

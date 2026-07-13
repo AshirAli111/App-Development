@@ -148,6 +148,84 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /auth/verify-identity:
+    post:
+      tags: [Auth]
+      summary: Verify a password-reset request by email + phone
+      description: >
+        Password reset without any emailed/SMS code. The user supplies BOTH the
+        email and phone number on their account; if both match the same account
+        a short-lived reset token (JWT scoped to purpose=password_reset, 15 min)
+        is returned so the client can immediately set a new password. Phone
+        comparison ignores spaces/dial code and matches on the last 10 digits.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, phone]
+              properties:
+                email:
+                  type: string
+                phone:
+                  type: string
+                  description: Composed phone, e.g. "+92 3001234567"
+      responses:
+        '200':
+          description: Identity verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  resetToken:
+                    type: string
+        '404':
+          description: No matching account (email not found or phone mismatch)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/reset-password:
+    post:
+      tags: [Auth]
+      summary: Set a new password using a reset token
+      description: >
+        Consumes the reset token from /auth/verify-reset-otp and updates the
+        user's password. The reset token cannot be used as a normal access
+        token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetToken, newPassword]
+              properties:
+                resetToken:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          description: Invalid/expired token or password too short
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   # ─────────────────────────────────────────────
   # USERS
   # ─────────────────────────────────────────────
@@ -1192,6 +1270,25 @@ components:
           $ref: '#/components/schemas/StudentProfile'
         tutorProfile:
           $ref: '#/components/schemas/TutorProfile'
+        payoutAccount:
+          type: object
+          nullable: true
+          description: Tutor's chosen payout destination (bank or wallet).
+          properties:
+            method:
+              type: string
+              description: Bank or wallet name (e.g. "Meezan Bank", "EasyPaisa")
+            kind:
+              type: string
+              enum: [bank, wallet]
+            accountName:
+              type: string
+            accountNumber:
+              type: string
+              description: Present for bank payouts (IBAN / account number)
+            phone:
+              type: string
+              description: Present for wallet payouts (10-digit number)
 
     StudentProfile:
       type: object

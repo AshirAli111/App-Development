@@ -9,6 +9,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import '../../../core/constants/courses.dart';
 import '../../../core/theme/spacing.dart';
 import '../../../core/utils/image_utils.dart';
+import '../../widgets/phone_number_field.dart';
 
 class StudentEditProfileScreen extends StatefulWidget {
   const StudentEditProfileScreen({super.key});
@@ -21,7 +22,7 @@ class StudentEditProfileScreen extends StatefulWidget {
 class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  String _phone = '';
   final _picker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
@@ -69,7 +70,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       setState(() {
         _nameController.text = profile['fullName'] ?? '';
         _emailController.text = profile['email'] ?? '';
-        _phoneController.text = profile['phone'] ?? '';
+        _phone = profile['phone'] ?? '';
         _existingImage = profile['profileImage'] as String?;
         _selectedCourses
           ..clear()
@@ -119,7 +120,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
     final updates = <String, dynamic>{
       'fullName': _nameController.text.trim(),
       'email': email,
-      'phone': _phoneController.text.trim(),
+      'phone': _phone.trim(),
       'studentProfile': {
         'selectedCourses': _selectedCourses,
       },
@@ -164,7 +165,6 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     super.dispose();
   }
 
@@ -226,7 +226,10 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
                   const SizedBox(height: AppSpacing.s16),
                   _inputField(context, "Email", _emailController),
                   const SizedBox(height: AppSpacing.s16),
-                  _inputField(context, "Phone Number", _phoneController),
+                  PhoneNumberField(
+                    initialValue: _phone,
+                    onChanged: (value) => _phone = value,
+                  ),
                   const SizedBox(height: AppSpacing.s24),
                   Text("My Courses",
                       style: Theme.of(context).textTheme.bodyLarge),

@@ -20,6 +20,16 @@ Middleware authMiddleware() {
         final jwt = JWT.verify(token, SecretKey(Env.jwtSecret));
         final payload = jwt.payload as Map<String, dynamic>;
 
+        // Reject special-purpose tokens (e.g. password reset) and refresh
+        // tokens — only full access tokens carry role + email.
+        if (payload['purpose'] != null ||
+            payload['role'] == null ||
+            payload['email'] == null) {
+          return Response(401,
+              body: jsonEncode({'error': 'Invalid token'}),
+              headers: {'content-type': 'application/json'});
+        }
+
         // Add user info to request context via headers
         final updatedRequest = request.change(headers: {
           'x-user-id': payload['userId'],

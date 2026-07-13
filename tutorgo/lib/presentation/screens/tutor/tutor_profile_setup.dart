@@ -10,6 +10,7 @@ import 'package:next_step_learning/data/services/user_service.dart';
 import 'package:next_step_learning/core/theme/colors.dart';
 import 'package:next_step_learning/core/theme/spacing.dart';
 import 'package:next_step_learning/core/theme/typography.dart';
+import 'package:next_step_learning/presentation/widgets/phone_number_field.dart';
 import 'package:next_step_learning/routes/app_routes.dart';
 
 class TutorProfileSetup extends StatefulWidget {
@@ -31,7 +32,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
+  String _phone = '';
   final _experienceController = TextEditingController();
   final _qualificationController = TextEditingController();
 
@@ -63,7 +64,6 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
-    _phoneController.dispose();
     _experienceController.dispose();
     _qualificationController.dispose();
     super.dispose();
@@ -141,7 +141,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
       final profileData = <String, dynamic>{
         'fullName': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phone': _phone.trim(),
         'tutorProfile': tutorProfile,
       };
 
@@ -299,10 +299,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
               ),
               const SizedBox(height: AppSpacing.s16),
 
-              TextField(
-                controller: _phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(hintText: "Phone Number"),
+              PhoneNumberField(
+                onChanged: (value) => _phone = value,
               ),
               const SizedBox(height: AppSpacing.s16),
 

@@ -12,8 +12,57 @@ class AuthRoutes {
     router.post('/register', _register);
     router.post('/login', _login);
     router.post('/refresh', _refresh);
+    router.post('/verify-identity', _verifyIdentity);
+    router.post('/reset-password', _resetPassword);
 
     return router;
+  }
+
+  Future<Response> _verifyIdentity(Request request) async {
+    try {
+      final body = await parseBody(request);
+      final email = (body['email'] as String?)?.trim();
+      final phone = (body['phone'] as String?)?.trim();
+
+      if (email == null || email.isEmpty || phone == null || phone.isEmpty) {
+        return errorResponse('email and phone are required');
+      }
+
+      final result = await _authService.verifyIdentity(
+        email: email,
+        phone: phone,
+      );
+      return jsonResponse(result);
+    } on Exception catch (e) {
+      return errorResponse(
+        e.toString().replaceFirst('Exception: ', ''),
+        statusCode: 404,
+      );
+    }
+  }
+
+  Future<Response> _resetPassword(Request request) async {
+    try {
+      final body = await parseBody(request);
+      final resetToken = body['resetToken'] as String?;
+      final newPassword = body['newPassword'] as String?;
+
+      if (resetToken == null || newPassword == null) {
+        return errorResponse('resetToken and newPassword are required');
+      }
+
+      if (newPassword.length < 6) {
+        return errorResponse('Password must be at least 6 characters');
+      }
+
+      final result = await _authService.resetPassword(
+        resetToken: resetToken,
+        newPassword: newPassword,
+      );
+      return jsonResponse(result);
+    } on Exception catch (e) {
+      return errorResponse(e.toString().replaceFirst('Exception: ', ''));
+    }
   }
 
   Future<Response> _register(Request request) async {

@@ -53,6 +53,42 @@ class AuthService {
     throw Exception(data['error'] ?? 'Registration failed');
   }
 
+  /// Verifies a password-reset request using the account's email + phone.
+  /// No code is sent; returns `{ resetToken }` when both match one account.
+  Future<Map<String, dynamic>> verifyIdentity({
+    required String email,
+    required String phone,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-identity'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'phone': phone}),
+    );
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+    if (response.statusCode == 200) {
+      return data;
+    }
+    throw Exception(data['error'] ?? 'Verification failed');
+  }
+
+  Future<void> resetPassword({
+    required String resetToken,
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'resetToken': resetToken, 'newPassword': newPassword}),
+    );
+
+    if (response.statusCode == 200) return;
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    throw Exception(data['error'] ?? 'Failed to reset password');
+  }
+
   Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/refresh'),

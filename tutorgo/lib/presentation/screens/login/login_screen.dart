@@ -169,7 +169,32 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
 
-                SizedBox(height: SizeConfig.h(30)),
+                SizedBox(height: SizeConfig.h(12)),
+
+                // Forgot Password Link
+                FadeIn(
+                  delay: 500,
+                  child: Container(
+                    margin: EdgeInsets.symmetric(horizontal: SizeConfig.w(30)),
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pushNamed(
+                            context, AppRoutes.forgotPassword);
+                      },
+                      child: Text(
+                        "Forgot password?",
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                SizedBox(height: SizeConfig.h(18)),
 
                 // Login Button
                 FadeIn(
