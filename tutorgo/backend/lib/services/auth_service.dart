@@ -208,4 +208,55 @@ class AuthService {
 
     return {'message': 'Password updated successfully'};
   }
+
+  /// Changes the user's email and/or password after verifying the current
+  /// password. Returns the updated public user.
+  Future<Map<String, dynamic>> changeCredentials({
+    required String userId,
+    required String currentPassword,
+    String? newEmail,
+    String? newPassword,
+  }) async {
+    final userDoc = await _users.findOne(
+      where.eq('_id', ObjectId.fromHexString(userId)),
+    );
+    if (userDoc == null) throw Exception('User not found');
+
+    final user = UserModel.fromMap(userDoc);
+    if (!_verifyPassword(currentPassword, user.password)) {
+      throw Exception('Current password is incorrect');
+    }
+
+    final modifier = ModifierBuilder();
+    var hasChange = false;
+
+    final trimmedEmail = newEmail?.trim();
+    if (trimmedEmail != null &&
+        trimmedEmail.isNotEmpty &&
+        trimmedEmail != user.email) {
+      if (!trimmedEmail.contains('@')) {
+        throw Exception('Please enter a valid email');
+      }
+      final existing = await _users.findOne(where.eq('email', trimmedEmail));
+      if (existing != null) throw Exception('That email is already in use');
+      modifier.set('email', trimmedEmail);
+      hasChange = true;
+    }
+
+    if (newPassword != null && newPassword.isNotEmpty) {
+      if (newPassword.length < 6) {
+        throw Exception('New password must be at least 6 characters');
+      }
+      modifier.set('password', _hashPassword(newPassword));
+      hasChange = true;
+    }
+
+    if (!hasChange) throw Exception('Nothing to update');
+
+    modifier.set('updatedAt', DateTime.now());
+    await _users.updateOne(where.eq('_id', user.id), modifier);
+
+    final updated = await _users.findOne(where.eq('_id', user.id));
+    return UserModel.fromMap(updated!).toPublicMap();
+  }
 }

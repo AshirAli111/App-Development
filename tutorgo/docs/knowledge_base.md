@@ -1008,3 +1008,17 @@ Local notifications **while the app is running** (no Firebase). Dependency:
   args — still just updates the profile.)
 - **Back** from profile setup returns to the **Create Account (Register)** screen (so the
   user can change Student/Tutor); back from Register returns to Login.
+
+## 27. TICKET-15 — Editable email on setup + change email/password in edit profile
+- **Profile setup email is now editable** (was disabled). The account is created on Continue
+  using the (possibly edited) email; setup validates it contains `@`.
+- **Change email & password from Edit Profile** (both student and tutor): a "Change Password
+  (optional)" section with **Current Password** + **New Password** fields, and the existing
+  editable **Email** field.
+- Backend: `PUT /api/users/me/credentials` `{currentPassword, newEmail?, newPassword?}` —
+  verifies the current password (bcrypt), enforces unique email (409), min-6 password;
+  returns the updated user. Implemented in `AuthService.changeCredentials`.
+  - **Important:** plain `PUT /api/users/me` still **strips** `email`/`password`/`role`
+    (see `UserService.updateUser`). Credentials MUST go through the new endpoint.
+- Edit-profile save flow: profile fields via `PUT /me`, then — only if the email changed or a
+  new password was entered — `PUT /me/credentials` (which requires the current password).

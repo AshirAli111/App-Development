@@ -1,21 +1,54 @@
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
+import '../services/auth_service.dart';
 import '../services/user_service.dart';
 import '../utils/response.dart';
 
 class UserRoutes {
   final _userService = UserService();
+  final _authService = AuthService();
 
   Router get router {
     final router = Router();
 
     router.get('/me', _getMe);
     router.put('/me', _updateMe);
+    router.put('/me/credentials', _updateCredentials);
     router.delete('/me', _deleteMe);
     router.get('/tutors', _getTutors);
     router.get('/tutors/<id>', _getTutorById);
 
     return router;
+  }
+
+  /// Change email and/or password after verifying the current password.
+  Future<Response> _updateCredentials(Request request) async {
+    final userId = request.headers['x-user-id'];
+    if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
+
+    try {
+      final body = await parseBody(request);
+      final currentPassword = body['currentPassword'] as String?;
+      if (currentPassword == null || currentPassword.isEmpty) {
+        return errorResponse('currentPassword is required');
+      }
+
+      final updated = await _authService.changeCredentials(
+        userId: userId,
+        currentPassword: currentPassword,
+        newEmail: body['newEmail'] as String?,
+        newPassword: body['newPassword'] as String?,
+      );
+      return jsonResponse(updated);
+    } on Exception catch (e) {
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      final status = msg.contains('already in use')
+          ? 409
+          : msg.contains('incorrect')
+              ? 401
+              : 400;
+      return errorResponse(msg, statusCode: status);
+    }
   }
 
   Future<Response> _getMe(Request request) async {

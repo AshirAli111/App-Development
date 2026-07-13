@@ -129,6 +129,10 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
   String? _validate() {
     if (_nameController.text.trim().isEmpty) return 'Please enter your full name';
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      return 'Please enter a valid email';
+    }
     if (_phoneDigitCount() != 10) {
       return 'Please enter a valid 10-digit phone number';
     }
@@ -159,9 +163,9 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
       // Deferred creation: if we arrived here with registration details, create
       // the account NOW (only after all fields are valid).
-      if (widget.email != null && widget.password != null) {
+      if (widget.password != null) {
         await auth.register(
-          email: widget.email!,
+          email: _emailController.text.trim(),
           password: widget.password!,
           fullName: _nameController.text.trim(),
           role: 'tutor',
@@ -370,7 +374,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
               TextField(
                 controller: _emailController,
-                enabled: false,
+                keyboardType: TextInputType.emailAddress,
                 decoration: const InputDecoration(hintText: "Email"),
               ),
               const SizedBox(height: AppSpacing.s16),

@@ -250,8 +250,8 @@ paths:
       tags: [Users]
       summary: Update current user profile
       description: |
-        Updates user profile fields (including `email`, which is the login identifier).
-        Password and role cannot be changed via this endpoint.
+        Updates user profile fields. `email`, `password`, and `role` are ignored
+        here — change email/password via `PUT /api/users/me/credentials`.
         For student profiles, update `studentProfile` object.
         For tutor profiles, update `tutorProfile` object.
       security:
@@ -296,6 +296,50 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /api/users/me/credentials:
+    put:
+      tags: [Users]
+      summary: Change email and/or password
+      description: >
+        Changes the authenticated user's email and/or password after verifying
+        the current password. Email must be unique. (Note: the plain profile
+        `PUT /api/users/me` ignores `email`/`password`; use this endpoint for
+        credentials.)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newEmail:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 6
+      responses:
+        '200':
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Missing auth or current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
 
   /api/users/tutors:
     get:

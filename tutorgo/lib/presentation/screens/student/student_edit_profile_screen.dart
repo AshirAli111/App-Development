@@ -22,7 +22,10 @@ class StudentEditProfileScreen extends StatefulWidget {
 class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
   String _phone = '';
+  String _originalEmail = '';
   final _picker = ImagePicker();
   bool _isLoading = true;
   bool _isSaving = false;
@@ -70,6 +73,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       setState(() {
         _nameController.text = profile['fullName'] ?? '';
         _emailController.text = profile['email'] ?? '';
+        _originalEmail = profile['email'] ?? '';
         _phone = profile['phone'] ?? '';
         _existingImage = profile['profileImage'] as String?;
         _selectedCourses
@@ -108,6 +112,28 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       return;
     }
 
+    final currentPassword = _currentPasswordController.text;
+    final newPassword = _newPasswordController.text;
+    final emailChanged = email != _originalEmail;
+    final wantsCredentialChange = emailChanged || newPassword.isNotEmpty;
+
+    if (wantsCredentialChange && currentPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Enter your current password to change email or password'),
+        ),
+      );
+      return;
+    }
+    if (newPassword.isNotEmpty && newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('New password must be at least 6 characters')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final auth = context.read<AuthProvider>();
@@ -117,9 +143,9 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       userId: auth.userId,
     );
 
+    // Email/password are handled by the credentials endpoint, not here.
     final updates = <String, dynamic>{
       'fullName': _nameController.text.trim(),
-      'email': email,
       'phone': _phone.trim(),
       'studentProfile': {
         'selectedCourses': _selectedCourses,
@@ -141,23 +167,38 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
       updates['profileImage'] = base64Encode(bytes);
     }
 
-    final result = await userService.updateProfile(updates);
+    try {
+      final result = await userService.updateProfile(updates);
+      if (result == null) throw Exception('Failed to update profile');
 
-    if (mounted) {
-      setState(() => _isSaving = false);
-      if (result != null) {
+      if (wantsCredentialChange) {
+        await userService.changeCredentials(
+          currentPassword: currentPassword,
+          newEmail: emailChanged ? email : null,
+          newPassword: newPassword.isNotEmpty ? newPassword : null,
+        );
+        _originalEmail = email;
+        _currentPasswordController.clear();
+        _newPasswordController.clear();
+      }
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully')),
         );
         Navigator.pop(context);
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update profile'),
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -165,6 +206,8 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
     super.dispose();
   }
 
@@ -257,6 +300,21 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
                     }).toList(),
                   ),
                   const SizedBox(height: AppSpacing.s32),
+                  Text("Change Password (optional)",
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Enter your current password to change your email or password.",
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.s16),
+                  _inputField(
+                      context, "Current Password", _currentPasswordController,
+                      obscure: true),
+                  const SizedBox(height: AppSpacing.s16),
+                  _inputField(context, "New Password", _newPasswordController,
+                      obscure: true),
+                  const SizedBox(height: AppSpacing.s32),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -290,7 +348,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
 
   Widget _inputField(BuildContext context, String label,
       TextEditingController controller,
-      {bool enabled = true}) {
+      {bool enabled = true, bool obscure = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -299,6 +357,7 @@ class _StudentEditProfileScreenState extends State<StudentEditProfileScreen> {
         TextField(
           controller: controller,
           enabled: enabled,
+          obscureText: obscure,
           decoration: InputDecoration(
             filled: true,
             fillColor: Theme.of(context).cardColor,

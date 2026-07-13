@@ -44,6 +44,28 @@ class UserService {
     return null;
   }
 
+  /// Changes email and/or password after verifying the current password.
+  Future<Map<String, dynamic>> changeCredentials({
+    required String currentPassword,
+    String? newEmail,
+    String? newPassword,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/users/me/credentials'),
+      headers: _headers,
+      body: jsonEncode({
+        'currentPassword': currentPassword,
+        if (newEmail != null && newEmail.isNotEmpty) 'newEmail': newEmail,
+        if (newPassword != null && newPassword.isNotEmpty)
+          'newPassword': newPassword,
+      }),
+    );
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    if (response.statusCode == 200) return data;
+    throw Exception(data['error'] ?? 'Failed to update credentials');
+  }
+
   Future<List<Map<String, dynamic>>> getTutors({
     String? subject,
     int page = 1,

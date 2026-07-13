@@ -103,6 +103,10 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
   String? _validate() {
     if (_nameController.text.trim().isEmpty) return 'Please enter your full name';
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      return 'Please enter a valid email';
+    }
     if (_phoneDigitCount() != 10) {
       return 'Please enter a valid 10-digit phone number';
     }
@@ -131,9 +135,9 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
 
       // Deferred creation: if we arrived here with registration details, create
       // the account NOW (only after all fields are valid).
-      if (widget.email != null && widget.password != null) {
+      if (widget.password != null) {
         await auth.register(
-          email: widget.email!,
+          email: _emailController.text.trim(),
           password: widget.password!,
           fullName: _nameController.text.trim(),
           role: 'student',
@@ -271,8 +275,7 @@ class _StudentProfileSetupState extends State<StudentProfileSetup> {
                 _input(context, "Full Name", 500, controller: _nameController),
                 _input(context, "Email", 550,
                     controller: _emailController,
-                    keyboard: TextInputType.emailAddress,
-                    enabled: false),
+                    keyboard: TextInputType.emailAddress),
                 FadeIn(
                   delay: 580,
                   child: Padding(

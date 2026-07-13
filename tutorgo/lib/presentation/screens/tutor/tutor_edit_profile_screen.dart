@@ -20,10 +20,13 @@ class TutorEditProfileScreen extends StatefulWidget {
 class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
   final nameCtrl = TextEditingController();
   final emailCtrl = TextEditingController();
+  final currentPasswordCtrl = TextEditingController();
+  final newPasswordCtrl = TextEditingController();
   final customCourseCtrl = TextEditingController();
   final bioCtrl = TextEditingController();
   final rateCtrl = TextEditingController();
   final _picker = ImagePicker();
+  String _originalEmail = '';
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -55,6 +58,7 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
       setState(() {
         nameCtrl.text = profile['fullName'] ?? '';
         emailCtrl.text = profile['email'] ?? '';
+        _originalEmail = profile['email'] ?? '';
         final subjects =
             (profile['tutorProfile']?['subjects'] as List<dynamic>?) ?? [];
         _subjects
@@ -90,6 +94,28 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
       return;
     }
 
+    final currentPassword = currentPasswordCtrl.text;
+    final newPassword = newPasswordCtrl.text;
+    final emailChanged = email != _originalEmail;
+    final wantsCredentialChange = emailChanged || newPassword.isNotEmpty;
+
+    if (wantsCredentialChange && currentPassword.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Enter your current password to change email or password'),
+        ),
+      );
+      return;
+    }
+    if (newPassword.isNotEmpty && newPassword.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('New password must be at least 6 characters')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     final auth = context.read<AuthProvider>();
@@ -99,9 +125,9 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
       userId: auth.userId,
     );
 
+    // Email/password are handled by the credentials endpoint, not here.
     final updates = <String, dynamic>{
       'fullName': nameCtrl.text.trim(),
-      'email': email,
       'tutorProfile': {
         'subjects': _subjects,
         'bio': bioCtrl.text.trim(),
@@ -124,23 +150,38 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
       updates['profileImage'] = base64Encode(bytes);
     }
 
-    final result = await userService.updateProfile(updates);
+    try {
+      final result = await userService.updateProfile(updates);
+      if (result == null) throw Exception('Failed to update profile');
 
-    if (mounted) {
-      setState(() => _isSaving = false);
-      if (result != null) {
+      if (wantsCredentialChange) {
+        await userService.changeCredentials(
+          currentPassword: currentPassword,
+          newEmail: emailChanged ? email : null,
+          newPassword: newPassword.isNotEmpty ? newPassword : null,
+        );
+        _originalEmail = email;
+        currentPasswordCtrl.clear();
+        newPasswordCtrl.clear();
+      }
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully')),
         );
         Navigator.pop(context);
-      } else {
+      }
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update profile'),
+          SnackBar(
+            content: Text(e.toString().replaceFirst('Exception: ', '')),
             backgroundColor: Colors.red,
           ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -148,6 +189,8 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
   void dispose() {
     nameCtrl.dispose();
     emailCtrl.dispose();
+    currentPasswordCtrl.dispose();
+    newPasswordCtrl.dispose();
     customCourseCtrl.dispose();
     bioCtrl.dispose();
     rateCtrl.dispose();
@@ -215,6 +258,20 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
                       keyboardType: TextInputType.number),
                   const SizedBox(height: AppSpacing.s16),
                   _field(context, "Bio", bioCtrl, maxLines: 3),
+                  const SizedBox(height: AppSpacing.s32),
+                  Text("Change Password (optional)",
+                      style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Enter your current password to change your email or password.",
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: AppSpacing.s16),
+                  _field(context, "Current Password", currentPasswordCtrl,
+                      obscure: true),
+                  const SizedBox(height: AppSpacing.s16),
+                  _field(context, "New Password", newPasswordCtrl,
+                      obscure: true),
                   const SizedBox(height: AppSpacing.s32),
                   SizedBox(
                     width: double.infinity,
@@ -327,7 +384,10 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
   }
 
   Widget _field(BuildContext context, String label, TextEditingController ctrl,
-      {bool enabled = true, int maxLines = 1, TextInputType? keyboardType}) {
+      {bool enabled = true,
+      int maxLines = 1,
+      TextInputType? keyboardType,
+      bool obscure = false}) {
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -338,6 +398,7 @@ class _TutorEditProfileScreenState extends State<TutorEditProfileScreen> {
           controller: ctrl,
           enabled: enabled,
           maxLines: maxLines,
+          obscureText: obscure,
           keyboardType: keyboardType,
           decoration: InputDecoration(
             filled: true,
