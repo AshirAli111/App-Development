@@ -3,13 +3,16 @@ import 'dart:io';
 
 import '../config/env.dart';
 
-/// Calls OpenRouter (Llama) to produce the NextStepLearning assistant's reply.
+/// Calls Google Gemini (`generateContent`) to produce the NextStepLearning
+/// assistant's reply.
 ///
 /// The system prompt is built server-side so the API key never leaves the
-/// backend and the assistant's behaviour stays consistent across clients.
+/// backend and the assistant's behaviour stays consistent across clients. Using
+/// Gemini (a hosted API) means the assistant works wherever the backend is
+/// deployed, not only on a local machine.
 class AiAssistantService {
-  static final Uri _endpoint =
-      Uri.parse('https://openrouter.ai/api/v1/chat/completions');
+  static const String _baseUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models';
 
   /// Max prior turns kept for context (keeps token use predictable).
   static const int _maxHistory = 12;
@@ -20,7 +23,7 @@ class AiAssistantService {
     List<Map<String, dynamic>> history = const [],
     String userContext = '',
   }) async {
-    if (Env.openRouterApiKey.isEmpty) {
+    if (Env.geminiApiKey.isEmpty) {
       throw Exception('AI assistant is not configured (missing API key)');
     }
 
@@ -31,11 +34,9 @@ class AiAssistantService {
           'do not invent anything beyond it):\n$userContext';
     }
 
-    final messages = <Map<String, String>>[
-      {'role': 'system', 'content': system},
-    ];
-
-    // Append recent history (already in {role, content} form).
+    // Build Gemini `contents`. Gemini uses the role name "model" for the
+    // assistant's turns; the incoming history uses "assistant".
+    final contents = <Map<String, dynamic>>[];
     final trimmed = history.length > _maxHistory
         ? history.sublist(history.length - _maxHistory)
         : history;
@@ -43,28 +44,43 @@ class AiAssistantService {
       final r = m['role']?.toString();
       final c = m['content']?.toString();
       if ((r == 'user' || r == 'assistant') && c != null && c.isNotEmpty) {
-        messages.add({'role': r!, 'content': c});
+        contents.add({
+          'role': r == 'assistant' ? 'model' : 'user',
+          'parts': [
+            {'text': c}
+          ],
+        });
       }
     }
-    messages.add({'role': 'user', 'content': message});
+    contents.add({
+      'role': 'user',
+      'parts': [
+        {'text': message}
+      ],
+    });
 
     final payload = jsonEncode({
-      'model': Env.openRouterModel,
-      'messages': messages,
-      'temperature': 0.3,
-      'max_tokens': 500,
+      'system_instruction': {
+        'parts': [
+          {'text': system}
+        ],
+      },
+      'contents': contents,
+      'generationConfig': {
+        'temperature': 0.3,
+        'maxOutputTokens': 500,
+      },
     });
+
+    final endpoint = Uri.parse(
+        '$_baseUrl/${Env.geminiModel}:generateContent');
 
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 30);
     try {
-      final request = await client.postUrl(_endpoint);
-      request.headers.set(HttpHeaders.authorizationHeader,
-          'Bearer ${Env.openRouterApiKey}');
+      final request = await client.postUrl(endpoint);
       request.headers.contentType = ContentType.json;
-      // OpenRouter attribution headers (optional but recommended).
-      request.headers.set('HTTP-Referer', 'https://nextsteplearning.app');
-      request.headers.set('X-Title', 'NextStepLearning');
+      request.headers.set('x-goog-api-key', Env.geminiApiKey);
       request.add(utf8.encode(payload));
 
       final response = await request.close();
@@ -84,12 +100,7 @@ class AiAssistantService {
       }
 
       final data = jsonDecode(body) as Map<String, dynamic>;
-      final choices = data['choices'] as List?;
-      String? text;
-      if (choices != null && choices.isNotEmpty) {
-        final message = choices[0]['message'] as Map?;
-        text = message?['content']?.toString().trim();
-      }
+      final text = _extractText(data);
       if (text == null || text.isEmpty) {
         throw Exception('AI service returned an empty response');
       }
@@ -97,6 +108,24 @@ class AiAssistantService {
     } finally {
       client.close(force: true);
     }
+  }
+
+  /// Pulls the reply text out of a Gemini `generateContent` response by
+  /// concatenating every text part of the first candidate.
+  String? _extractText(Map<String, dynamic> data) {
+    final candidates = data['candidates'] as List?;
+    if (candidates == null || candidates.isEmpty) return null;
+    final first = candidates[0] as Map?;
+    final content = first?['content'] as Map?;
+    final parts = content?['parts'] as List?;
+    if (parts == null || parts.isEmpty) return null;
+    final buffer = StringBuffer();
+    for (final p in parts) {
+      final t = (p as Map?)?['text']?.toString();
+      if (t != null) buffer.write(t);
+    }
+    final text = buffer.toString().trim();
+    return text.isEmpty ? null : text;
   }
 
   String _systemPrompt(String role) {
@@ -114,7 +143,7 @@ CURRENT CONTEXT
 - Platform country: Pakistan.
 
 STYLE
-- Be precise and to the point. Prefer 1–4 short sentences or a tight bullet list.
+- Be precise and to the point. Prefer 1-4 short sentences or a tight bullet list.
 - No filler, no repetition, no long preambles. Answer first, then a brief how-to if useful.
 - Use plain, friendly language. Only use headings/bullets when they aid clarity.
 

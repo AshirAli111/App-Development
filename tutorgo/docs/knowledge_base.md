@@ -959,9 +959,9 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - The old AI chat called Google Gemini **directly from the client** with a hardcoded key
   (`lib/data/dummy/services/ai_service.dart`) — **removed**.
 - Now the assistant runs **server-side**: `POST /api/ai/chat` (protected) → backend
-  `AiAssistantService.reply()` calls **OpenRouter** (`meta-llama/llama-3.3-70b-instruct`
-  by default). The **OpenRouter key lives in `backend/.env`** (`OPENROUTER_API_KEY`,
-  `OPENROUTER_MODEL`) — gitignored, never shipped in the app.
+  `AiAssistantService.reply()`. **Provider updated in §28 (TICKET-16): now Google Gemini,
+  not OpenRouter/Llama.** The API key lives in the gitignored `backend/.env`, never shipped
+  in the app.
 - System prompt (built in `_systemPrompt(role)`) is **role-aware** (role from the JWT),
   **precise/to-the-point**, and covers: onboarding/navigation, tutor discovery & matching,
   registration/enrollment, booking/scheduling, account & billing (EasyPaisa/JazzCash/Bank
@@ -1022,3 +1022,28 @@ Local notifications **while the app is running** (no Firebase). Dependency:
     (see `UserService.updateUser`). Credentials MUST go through the new endpoint.
 - Edit-profile save flow: profile fields via `PUT /me`, then — only if the email changed or a
   new password was entered — `PUT /me/credentials` (which requires the current password).
+
+## 28. TICKET-16 — Apple HIG design system + Gemini-powered assistant
+- **AI assistant now runs on Google Gemini** (replaces OpenRouter/Llama; supersedes the
+  provider note in §25). `AiAssistantService.reply()` POSTs to
+  `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent` with the
+  system prompt in `system_instruction`, history mapped `assistant→model`/`user→user`, and
+  `generationConfig` (`temperature 0.3`, `maxOutputTokens 500`). Auth via the `x-goog-api-key`
+  header; reply text read from `candidates[0].content.parts[*].text`.
+  - `Env.geminiApiKey` / `Env.geminiModel` (default `gemini-flash-latest`); key lives only in
+    the gitignored `backend/.env` (`GEMINI_API_KEY`, `GEMINI_MODEL`). The `/api/ai/chat`
+    request/response shape, user-context injection, persistence, Enter-to-send and Clear are
+    all unchanged — only the provider changed. Hosted API means the assistant works when the
+    backend is deployed, not only locally.
+- **Apple Human Interface Guidelines design system** — one consistent iOS-style look driven
+  from `lib/core/theme/`:
+  - `colors.dart`: system palette (systemBlue `#007AFF` primary, systemGreen/Orange/Red status,
+    systemIndigo accent, grouped backgrounds, label greys, hairline separators) with light
+    (`AppColors`) + dark (`AppColorsDark`) values.
+  - `typography.dart`: HIG type scale on Inter (SF-like); `AppTypography.textTheme(...)` builds
+    a full Material `TextTheme` (largeTitle→caption). Legacy `h1/h2/h3/body*` names kept.
+  - `app_theme.dart`: light & dark `ThemeData` with complete component themes — appBar (centred
+    title, flat), card (inset, hairline border), filled/rounded inputs, 50pt primary buttons,
+    listTile, divider, switch (green track), chip, dialog, bottomSheet, snackBar, bottom nav.
+  - Screens read `Theme.of(context)` / `AppColors` / `AppTypography`, so the new tokens
+    propagate app-wide without per-screen rewrites.

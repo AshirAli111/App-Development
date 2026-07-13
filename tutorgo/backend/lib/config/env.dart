@@ -15,7 +15,8 @@ class Env {
   static int get refreshTokenExpiry => int.parse(_dotEnv['REFRESH_TOKEN_EXPIRY'] ?? '604800');
   static int get port => int.parse(_dotEnv['PORT'] ?? '8080');
 
-  static String get openRouterApiKey => _dotEnv['OPENROUTER_API_KEY'] ?? '';
-  static String get openRouterModel =>
-      _dotEnv['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct';
+  // AI assistant — Google Gemini (generateContent).
+  static String get geminiApiKey => _dotEnv['GEMINI_API_KEY'] ?? '';
+  static String get geminiModel =>
+      _dotEnv['GEMINI_MODEL'] ?? 'gemini-flash-latest';
 }

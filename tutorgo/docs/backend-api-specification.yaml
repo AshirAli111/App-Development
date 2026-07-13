@@ -679,10 +679,11 @@ paths:
       tags: [AI Conversations]
       summary: Ask the NextStepLearning assistant
       description: >
-        Stateless assistant reply powered by Llama (via OpenRouter). The backend
-        builds a role-aware system prompt (the role comes from the JWT) and
-        injects the current date/time + country so general questions like the
-        current time are answerable. The OpenRouter API key stays server-side.
+        Stateless assistant reply powered by Google Gemini (generateContent).
+        The backend builds a role-aware system prompt (the role comes from the
+        JWT) and injects the current date/time + country so general questions
+        like the current time are answerable. The Gemini API key stays
+        server-side.
       security:
         - BearerAuth: []
       requestBody:
