@@ -14,7 +14,18 @@ import 'package:next_step_learning/presentation/widgets/phone_number_field.dart'
 import 'package:next_step_learning/routes/app_routes.dart';
 
 class TutorProfileSetup extends StatefulWidget {
-  const TutorProfileSetup({super.key});
+  /// Registration details carried from the register screen. When [password] is
+  /// present the account has NOT been created yet — it is created on Continue.
+  final String? fullName;
+  final String? email;
+  final String? password;
+
+  const TutorProfileSetup({
+    super.key,
+    this.fullName,
+    this.email,
+    this.password,
+  });
 
   @override
   State<TutorProfileSetup> createState() => _TutorProfileSetupState();
@@ -65,8 +76,8 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
   void initState() {
     super.initState();
     final auth = context.read<AuthProvider>();
-    _emailController.text = auth.email;
-    _nameController.text = auth.fullName;
+    _emailController.text = widget.email ?? auth.email;
+    _nameController.text = widget.fullName ?? auth.fullName;
   }
 
   @override
@@ -145,6 +156,19 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
 
     try {
       final auth = context.read<AuthProvider>();
+
+      // Deferred creation: if we arrived here with registration details, create
+      // the account NOW (only after all fields are valid).
+      if (widget.email != null && widget.password != null) {
+        await auth.register(
+          email: widget.email!,
+          password: widget.password!,
+          fullName: _nameController.text.trim(),
+          role: 'tutor',
+          phone: _phone.trim(),
+        );
+      }
+
       final userService = UserService(
         baseUrl: auth.baseUrl,
         token: auth.accessToken,
@@ -198,7 +222,7 @@ class _TutorProfileSetupState extends State<TutorProfileSetup> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Failed to save profile: ${e.toString()}'),
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
           backgroundColor: Colors.red,
         ),
       );

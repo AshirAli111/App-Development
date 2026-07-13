@@ -68,10 +68,20 @@ class AppPages {
         return _page(const RoleSelectionScreen());
 
       case AppRoutes.studentSetup:
-        return _page(const StudentProfileSetup());
+        final data = args as Map?;
+        return _page(StudentProfileSetup(
+          fullName: data?['fullName'] as String?,
+          email: data?['email'] as String?,
+          password: data?['password'] as String?,
+        ));
 
       case AppRoutes.tutorSetup:
-        return _page(const TutorProfileSetup());
+        final data = args as Map?;
+        return _page(TutorProfileSetup(
+          fullName: data?['fullName'] as String?,
+          email: data?['email'] as String?,
+          password: data?['password'] as String?,
+        ));
 
       // NAVBAR ROUTES
       case AppRoutes.studentNavbar:

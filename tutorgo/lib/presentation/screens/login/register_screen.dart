@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:next_step_learning/data/providers/auth_provider.dart';
 import '../../../core/utils/size_config.dart';
 import '../../components/animations/fade_in.dart';
 import '../../../routes/app_routes.dart';
@@ -18,7 +16,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _obscurePassword = true;
   String _selectedRole = 'student';
 
@@ -31,41 +29,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _handleRegister() async {
+  void _handleRegister() {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    // Do NOT create the account yet. Carry the details to profile setup; the
+    // account is created in the database only when the user completes setup and
+    // taps Continue. Use pushNamed so this screen stays beneath setup and the
+    // setup back button returns here (to change role, etc.).
+    final route = _selectedRole == 'tutor'
+        ? AppRoutes.tutorSetup
+        : AppRoutes.studentSetup;
 
-    try {
-      final auth = context.read<AuthProvider>();
-      await auth.register(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-        fullName: _fullNameController.text.trim(),
-        role: _selectedRole,
-      );
-
-      if (!mounted) return;
-
-      // Navigate to profile setup based on role. Use pushReplacement (not
-      // removeUntil) so the setup screen keeps a screen beneath it and its
-      // back button works.
-      final route = _selectedRole == 'tutor'
-          ? AppRoutes.tutorSetup
-          : AppRoutes.studentSetup;
-
-      Navigator.pushReplacementNamed(context, route);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+    Navigator.pushNamed(context, route, arguments: {
+      'fullName': _fullNameController.text.trim(),
+      'email': _emailController.text.trim(),
+      'password': _passwordController.text,
+    });
   }
 
   @override

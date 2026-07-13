@@ -997,3 +997,14 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - Phone validity = national part has exactly 10 digits (from `PhoneNumberField`'s composed value).
 - Both setup screens have a **back button** (transparent AppBar → `Navigator.maybePop`) to
   return to role selection.
+
+### TICKET-14 follow-up — deferred account creation
+- The account is **no longer created at the Register screen**. Register now only validates
+  and forwards `{fullName, email, password}` to the profile-setup screen via route args
+  (using `pushNamed`, so Register stays beneath setup).
+- The account is created in the DB **only when the user taps Continue on profile setup** and
+  all required fields pass validation: setup calls `AuthProvider.register(...)` then
+  `updateProfile(...)`. (Legacy path — already-authenticated users reaching setup without
+  args — still just updates the profile.)
+- **Back** from profile setup returns to the **Create Account (Register)** screen (so the
+  user can change Student/Tutor); back from Register returns to Login.
