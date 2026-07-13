@@ -301,6 +301,7 @@ class _TutorCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.star, size: 14, color: Colors.amber),
                     const SizedBox(width: 4),
@@ -312,14 +313,21 @@ class _TutorCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (tutor["price"] != null && tutor["price"] != 0)
-                Text(
-                  "PKR ${tutor["price"]}/hr",
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                    fontWeight: FontWeight.w600,
+              if (tutor["price"] != null && tutor["price"] != 0) ...[
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    "PKR ${tutor["price"]}/hr",
+                    textAlign: TextAlign.right,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
+              ],
             ],
           ),
         ],
