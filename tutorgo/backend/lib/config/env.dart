@@ -14,4 +14,8 @@ class Env {
   static int get jwtExpiry => int.parse(_dotEnv['JWT_EXPIRY'] ?? '3600');
   static int get refreshTokenExpiry => int.parse(_dotEnv['REFRESH_TOKEN_EXPIRY'] ?? '604800');
   static int get port => int.parse(_dotEnv['PORT'] ?? '8080');
+
+  static String get openRouterApiKey => _dotEnv['OPENROUTER_API_KEY'] ?? '';
+  static String get openRouterModel =>
+      _dotEnv['OPENROUTER_MODEL'] ?? 'meta-llama/llama-3.3-70b-instruct';
 }

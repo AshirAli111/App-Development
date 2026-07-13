@@ -953,3 +953,35 @@ Local notifications **while the app is running** (no Firebase). Dependency:
 - `StudentPaymentMethodsScreen`: tapping a channel opens a sheet showing the destination
   account (copyable), an **Amount (PKR)** field, and the student's paying-account field
   (wallet number via `PhoneNumberField`, or bank account number), then a confirmation.
+
+## 25. TICKET-13 — AI assistant chatbot (Llama via OpenRouter)
+
+- The old AI chat called Google Gemini **directly from the client** with a hardcoded key
+  (`lib/data/dummy/services/ai_service.dart`) — **removed**.
+- Now the assistant runs **server-side**: `POST /api/ai/chat` (protected) → backend
+  `AiAssistantService.reply()` calls **OpenRouter** (`meta-llama/llama-3.3-70b-instruct`
+  by default). The **OpenRouter key lives in `backend/.env`** (`OPENROUTER_API_KEY`,
+  `OPENROUTER_MODEL`) — gitignored, never shipped in the app.
+- System prompt (built in `_systemPrompt(role)`) is **role-aware** (role from the JWT),
+  **precise/to-the-point**, and covers: onboarding/navigation, tutor discovery & matching,
+  registration/enrollment, booking/scheduling, account & billing (EasyPaisa/JazzCash/Bank
+  Transfer + tutor payout + email-and-phone password reset), escalation to Help Center /
+  Contact Support, and trust-&-safety guardrails (never asks for passwords/OTP/card PINs,
+  never invents tutor data). **Current date/time + Pakistan** are injected so general
+  questions (time/country) work.
+- Frontend: `lib/data/services/ai_assistant_service.dart` → `POST /api/ai/chat` with the
+  auth token + recent history; `ai_chat_screen.dart` uses it via `AuthProvider`.
+- Request body: `{message, history:[{role:'user'|'assistant', content}]}` → `{reply}`.
+  Backend caps history to the last 12 turns; `temperature 0.3`, `max_tokens 500`.
+
+### TICKET-13 refinements
+- **User context injection**: `AiRoutes._buildUserContext(userId, role)` assembles a short
+  snapshot (profile + `SessionService.getSessionsByUser` → student/tutor names, subjects,
+  day/time, payout status) passed to `AiAssistantService.reply(userContext:)`. So the bot
+  answers "who are my students / who is my tutor / when is my class" from real data.
+- **Chat persistence**: `ai_chat_screen.dart` saves messages to `shared_preferences` keyed
+  `ai_chat_<role>_<userId>`; loaded on open, saved each turn. Leaving the screen no longer
+  clears it — a **Clear chat** app-bar button (trash icon + confirm) is the only wipe.
+- **Enter to send**: a `Focus.onKeyEvent` sends on Enter; Shift+Enter = newline.
+- **Robustness**: `parseBody` uses `utf8.decode(bytes, allowMalformed: true)`; the OpenRouter
+  reply is fully buffered before decoding (avoids multi-byte-split `FormatException`).

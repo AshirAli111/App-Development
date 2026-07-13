@@ -628,6 +628,64 @@ paths:
                     $ref: '#/components/schemas/Message'
 
   # ─────────────────────────────────────────────
+  # AI ASSISTANT
+  # ─────────────────────────────────────────────
+  /api/ai/chat:
+    post:
+      tags: [AI Conversations]
+      summary: Ask the NextStepLearning assistant
+      description: >
+        Stateless assistant reply powered by Llama (via OpenRouter). The backend
+        builds a role-aware system prompt (the role comes from the JWT) and
+        injects the current date/time + country so general questions like the
+        current time are answerable. The OpenRouter API key stays server-side.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message:
+                  type: string
+                history:
+                  type: array
+                  description: Prior turns for context (most recent last).
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+      responses:
+        '200':
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  reply:
+                    type: string
+        '400':
+          description: Missing message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream AI service error or not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ─────────────────────────────────────────────
   # AI CONVERSATIONS
   # ─────────────────────────────────────────────
   /api/ai/conversations:

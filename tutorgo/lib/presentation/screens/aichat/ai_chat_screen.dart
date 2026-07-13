@@ -1,6 +1,12 @@
-import 'package:next_step_learning/data/dummy/services/ai_service.dart';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:next_step_learning/data/providers/auth_provider.dart';
+import 'package:next_step_learning/data/services/ai_assistant_service.dart';
 
 /// ROLE TYPE
 enum AiRole { student, tutor }
@@ -22,27 +28,85 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
   bool _isTyping = false;
 
+  String get _greeting => widget.role == AiRole.student
+      ? "Hi 👋 I’m the NextStepLearning assistant. Ask me about finding tutors, booking classes, payments, or anything else."
+      : "Hello 👋 I’m the NextStepLearning assistant. Ask me about your profile, payouts, scheduling, students, or anything else.";
+
+  /// Per-user, per-role storage key so history survives leaving the screen.
+  String _storageKey = '';
+
   @override
   void initState() {
     super.initState();
-
-    // Initial AI greeting
-    _messages.add(
-      _AiMessage(
-        text: widget.role == AiRole.student
-            ? "Hi 👋 I’m your AI study assistant. Ask me anything!"
-            : "Hello 👋 I’m your AI teaching assistant. How can I help today?",
-        isUser: false,
-      ),
-    );
-    _checkAvailableModels();
+    _messages.add(_AiMessage(text: _greeting, isUser: false));
+    _loadHistory();
   }
 
-  void _checkAvailableModels() async {
-    debugPrint("Checking available models...");
-    final availableModels = await AiService.listAvailableModels();
-    if (availableModels.isNotEmpty) {
-      debugPrint("Found models: $availableModels");
+  Future<void> _loadHistory() async {
+    final auth = context.read<AuthProvider>();
+    _storageKey = 'ai_chat_${widget.role.name}_${auth.userId}';
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw == null || raw.isEmpty) return;
+
+    try {
+      final decoded = jsonDecode(raw) as List;
+      final saved = decoded
+          .map((m) => _AiMessage(
+                text: m['text'] as String,
+                isUser: m['isUser'] as bool,
+              ))
+          .toList();
+      if (saved.isNotEmpty && mounted) {
+        setState(() {
+          _messages
+            ..clear()
+            ..addAll(saved);
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {
+      // Ignore corrupt history.
+    }
+  }
+
+  Future<void> _persist() async {
+    if (_storageKey.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final data = jsonEncode(
+      _messages.map((m) => {'text': m.text, 'isUser': m.isUser}).toList(),
+    );
+    await prefs.setString(_storageKey, data);
+  }
+
+  Future<void> _clearChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear chat?'),
+        content: const Text('This will delete this conversation.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _messages
+        ..clear()
+        ..add(_AiMessage(text: _greeting, isUser: false));
+    });
+    if (_storageKey.isNotEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_storageKey);
     }
   }
 
@@ -53,27 +117,41 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    // Snapshot the conversation (excluding the greeting) as history.
+    final history = _messages
+        .map((m) => {
+              'role': m.isUser ? 'user' : 'assistant',
+              'content': m.text,
+            })
+        .toList();
+
     setState(() {
       _messages.add(_AiMessage(text: text, isUser: true));
       _isTyping = true;
       _controller.clear();
     });
+    _persist();
 
     _scrollToBottom();
 
-    // Fake AI delay (replace with real API later)
-    await Future.delayed(const Duration(seconds: 1));
+    final auth = context.read<AuthProvider>();
+    final service =
+        AiAssistantService(baseUrl: auth.baseUrl, token: auth.accessToken);
 
-    // final aiReply = _generateAiReply(text);
-    final aiReply = await AiService.sendMessage(
-      message: text,
-      isStudent: widget.role == AiRole.student,
-    );
+    String aiReply;
+    try {
+      aiReply = await service.sendMessage(message: text, history: history);
+    } catch (e) {
+      aiReply =
+          "Sorry, I couldn't reach the assistant just now. Please try again in a moment.";
+    }
 
+    if (!mounted) return;
     setState(() {
       _messages.add(_AiMessage(text: aiReply, isUser: false));
       _isTyping = false;
     });
+    _persist();
 
     _scrollToBottom();
   }
@@ -107,6 +185,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
               : "AI Teaching Assistant",
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'Clear chat',
+            icon: const Icon(LucideIcons.trash2),
+            onPressed: _clearChat,
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -215,13 +300,27 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _controller,
-                minLines: 1,
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  hintText: "Ask AI anything...",
-                  border: InputBorder.none,
+              child: Focus(
+                onKeyEvent: (node, event) {
+                  // Enter sends; Shift+Enter inserts a newline.
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.enter &&
+                      !HardwareKeyboard.instance.isShiftPressed) {
+                    _sendMessage();
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TextField(
+                  controller: _controller,
+                  minLines: 1,
+                  maxLines: 4,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
+                  decoration: const InputDecoration(
+                    hintText: "Ask AI anything...",
+                    border: InputBorder.none,
+                  ),
                 ),
               ),
             ),
