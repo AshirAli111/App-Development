@@ -55,6 +55,11 @@ void main() {
       expect(service.parseCnicName(text), 'Ashir Ali');
     });
 
+    test('skips caption lines between Name and the holder name', () {
+      const text = 'Full name\n"Father\'s Name: xyz"\nGender\nAshir Ali\n';
+      expect(service.parseCnicName(text), 'Ashir Ali');
+    });
+
     test('returns null for null/empty text', () {
       expect(service.parseCnicName(null), isNull);
       expect(service.parseCnicName(''), isNull);

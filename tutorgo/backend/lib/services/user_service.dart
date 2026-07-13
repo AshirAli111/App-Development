@@ -32,7 +32,13 @@ class UserService {
     void flatten(String prefix, Map<String, dynamic> map) {
       for (final entry in map.entries) {
         final key = prefix.isEmpty ? entry.key : '$prefix.${entry.key}';
-        if (entry.value is Map<String, dynamic>) {
+        // `tutorProfile.documents` is written atomically: registration stores
+        // it as null, and MongoDB rejects dot-paths through a null parent
+        // (e.g. `tutorProfile.documents.cnicFront`), which used to make the
+        // whole profile update fail silently. Profile setup always sends the
+        // full document set, so replacing the map is safe.
+        if (entry.value is Map<String, dynamic> &&
+            key != 'tutorProfile.documents') {
           flatten(key, entry.value as Map<String, dynamic>);
         } else {
           flatUpdates[key] = entry.value;
@@ -46,10 +52,16 @@ class UserService {
       modifier.set(key, value);
     });
 
-    await _users.updateOne(
+    final result = await _users.updateOne(
       where.eq('_id', ObjectId.fromHexString(userId)),
       modifier,
     );
+    if (result.hasWriteErrors) {
+      // Surface instead of silently returning the unchanged user.
+      throw Exception(
+        'Profile update failed: ${result.writeError?.errmsg ?? 'write error'}',
+      );
+    }
 
     return getUserById(userId);
   }

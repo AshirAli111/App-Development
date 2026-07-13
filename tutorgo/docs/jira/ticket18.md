@@ -68,3 +68,28 @@ content directly and cross-check it against the tutor's registered profile.
 - [x] Profile update latency is unchanged (OCR runs after the response).
 - [x] OpenAPI spec and knowledge base updated.
 - [x] `dart analyze` clean on the backend; `flutter analyze` clean on the app.
+
+## Follow-up fixes (same ticket)
+
+Verified end-to-end against the live Atlas database and found the field never
+appeared — two pre-existing problems were blocking it:
+
+1. **Tutor documents were never stored at all.** Registration writes
+   `tutorProfile.documents: null`; the profile-setup update then `$set`s
+   dot-paths like `tutorProfile.documents.cnicFront`, and MongoDB rejects
+   dot-paths through a null parent — so the whole profile update (subjects,
+   experience, documents) failed **silently** for every tutor to date.
+   Fixed in `UserService.updateUser`: `tutorProfile.documents` is now written
+   atomically as one map (profile setup always sends the full set), and write
+   errors now throw instead of returning the unchanged user.
+2. **Tesseract was not installed on the backend host**, so even the verify
+   endpoint had been fail-open accepting documents unread. Installed
+   (`winget install UB-Mannheim.TesseractOCR`, v5.4.0) and added to PATH.
+
+Also added `bin/backfill_ocr_results.dart` (one-off script: OCRs the stored
+documents of existing tutors and writes their `ocrResults`; `--force` redoes
+all) — note existing tutors have no stored documents due to bug #1, so only
+tutors registering after this fix get real OCR data. Verified end-to-end with
+the sample documents: registered a test tutor ("OCR Test Tutor"), submitted
+all four sample files, and confirmed `ocrResults` in Atlas with full OCR text
+and a parsed CNIC number.

@@ -165,9 +165,16 @@ class OcrResultsService {
               lower.length <= 12);
       if (!isNameCaption) continue;
 
-      // The holder's name: the next line that is mostly letters.
+      // The holder's name: the next line that is mostly letters and is not
+      // itself another card caption ("Father's Name", "Gender", ...).
       for (var j = i + 1; j < lines.length; j++) {
         final candidate = lines[j];
+        final candidateLower = candidate.toLowerCase();
+        if (RegExp(r'name|father|husband|gender|country|identity|'
+                r'signature|birth|address|date')
+            .hasMatch(candidateLower)) {
+          continue;
+        }
         final letters = candidate.replaceAll(RegExp(r'[^A-Za-z ]'), '');
         if (letters.trim().length >= candidate.length * 0.7 &&
             letters.trim().length >= 3) {
