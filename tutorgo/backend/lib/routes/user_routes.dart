@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../services/auth_service.dart';
+import '../services/ocr_results_service.dart';
 import '../services/user_service.dart';
 import '../utils/response.dart';
 
 class UserRoutes {
   final _userService = UserService();
   final _authService = AuthService();
+  final _ocrResults = OcrResultsService();
 
   Router get router {
     final router = Router();
@@ -67,11 +71,29 @@ class UserRoutes {
 
     try {
       final body = await parseBody(request);
+
+      // Capture the raw documents before updateUser mutates the body: when a
+      // tutor submits registration documents, their OCR text is extracted and
+      // stored on the same user document (`ocrResults`) for admin verification.
+      final documents = (body['tutorProfile'] is Map)
+          ? (body['tutorProfile'] as Map)['documents']
+          : null;
+
       final updated = await _userService.updateUser(userId, body);
 
       if (updated == null) {
         return errorResponse('User not found', statusCode: 404);
       }
+
+      if (documents is Map && documents.isNotEmpty) {
+        // Fire-and-forget: OCR of up to 4 documents can take a while, so the
+        // profile update responds now and ocrResults lands moments later.
+        unawaited(_ocrResults.processAndStore(
+          userId: userId,
+          documents: Map<String, dynamic>.from(documents),
+        ));
+      }
+
       return jsonResponse(updated);
     } catch (e) {
       final msg = e.toString().toLowerCase();

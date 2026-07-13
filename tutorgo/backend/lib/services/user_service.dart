@@ -23,6 +23,8 @@ class UserService {
     updates.remove('password');
     updates.remove('role');
     updates.remove('createdAt');
+    // Server-derived (OcrResultsService) — clients must not forge it.
+    updates.remove('ocrResults');
     updates['updatedAt'] = DateTime.now();
 
     // Flatten nested objects to dot-notation so we don't overwrite entire sub-documents

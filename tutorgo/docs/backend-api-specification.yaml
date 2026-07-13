@@ -313,10 +313,19 @@ paths:
       tags: [Users]
       summary: Update current user profile
       description: |
-        Updates user profile fields. `email`, `password`, and `role` are ignored
-        here — change email/password via `PUT /api/users/me/credentials`.
+        Updates user profile fields. `email`, `password`, `role`, and
+        `ocrResults` are ignored here — change email/password via
+        `PUT /api/users/me/credentials`.
         For student profiles, update `studentProfile` object.
         For tutor profiles, update `tutorProfile` object.
+
+        **Side effect (TICKET-18):** when the body contains
+        `tutorProfile.documents` (base64 CNIC front/back, teaching
+        certificate, degree), the server OCRs each document in the background
+        and stores the extracted text — plus a parsed `extractedName` and
+        `extractedCnicNumber` — under the `ocrResults` field of the same
+        `users` document. This field is database-only (for admin
+        verification) and is never returned by any API response.
       security:
         - BearerAuth: []
       requestBody:

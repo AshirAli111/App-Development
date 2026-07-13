@@ -1,3 +1,4 @@
+
 # NextStepLearning - Technical Knowledge Base
 
 ## 1. Project Overview
@@ -390,6 +391,46 @@ teaching certificate, degree) actually contain content matching their slot.
   rejected with "Only PDF or image files are allowed."), shows a per-document
   spinner while verifying, and only accepts a file when `valid == true`;
   otherwise shows "This document does not contain valid <label> content."
+
+### Stored OCR Results for Admin Verification (TICKET-18)
+
+When a tutor's profile update (`PUT /api/users/me`) includes
+`tutorProfile.documents`, the backend OCRs every document and stores the
+extracted text on the **same `users` document** under `ocrResults`, so an
+admin inspecting MongoDB can verify a tutor without decoding base64 images.
+
+**Backend:** `backend/lib/services/ocr_results_service.dart`
+- Runs **fire-and-forget** after the profile-update response (hooked in
+  `user_routes.dart` `_updateMe`) — registration latency is unaffected; the
+  field lands moments later. Failures are logged, never thrown.
+- Documents are stored as bare base64, so the image type is **sniffed from
+  magic bytes** (PNG/JPEG/WebP OCR'd; PDFs/unknown recorded as `unsupported`).
+- Parses `extractedName` (CNIC front "Name" caption heuristic) and
+  `extractedCnicNumber` (`#####-#######-#` regex, front then back) for quick
+  cross-checking against the registered `fullName`.
+- Stored shape:
+  ```json
+  "ocrResults": {
+    "extractedName": "…",
+    "extractedCnicNumber": "12345-1234567-1",
+    "documents": {
+      "cnicFront":           { "status": "extracted", "text": "…raw OCR text…" },
+      "cnicBack":            { "status": "extracted", "text": "…" },
+      "teachingCertificate": { "status": "extracted", "text": "…" },
+      "degree":              { "status": "unsupported", "text": null }
+    },
+    "extractedAt": ISODate
+  }
+  ```
+  Per-document `status`: `extracted` | `unreadable` (OCR ran, no text) |
+  `unsupported` (PDF/unknown format) | `ocr_unavailable` (tesseract missing
+  or failed).
+- **DB-only field:** `ocrResults` is not part of `UserModel`, so
+  `toPublicMap()` never returns it (it contains CNIC data). It is also
+  stripped from client `PUT /api/users/me` bodies in
+  `UserService.updateUser` so it cannot be forged.
+- `DocumentValidationService.extractText()` is the shared tesseract runner
+  used by both the verify endpoint and this service.
 
 ---
 

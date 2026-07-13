@@ -120,6 +120,40 @@ class DocumentValidationService {
       return _failOpen('Could not verify (not an image); accepted.');
     }
 
+    final text = await extractText(fileBase64: fileBase64, mimeType: mimeType);
+    if (text == null) {
+      // OCR couldn't run (missing/broken tesseract, decode error, timeout).
+      return _failOpen('Could not verify automatically; accepted.');
+    }
+
+    final lower = text.toLowerCase();
+    if (lower.trim().isEmpty) {
+      // Text was readable to OCR but empty — no hint → treat as invalid.
+      return {
+        'valid': false,
+        'reason': 'Could not read any text from this ${spec.label}.',
+      };
+    }
+
+    if (_hasKeywordHint(lower, spec.keywords)) {
+      return {'valid': true, 'reason': 'Content matches ${spec.label}.'};
+    }
+    return {
+      'valid': false,
+      'reason': 'This document does not look like a ${spec.label}.',
+    };
+  }
+
+  /// Runs tesseract on a base64-encoded image and returns the raw extracted
+  /// text. Returns `null` when OCR could not run at all (non-image input,
+  /// missing/broken tesseract, decode error, crash, or timeout) — callers
+  /// decide their own fallback policy.
+  Future<String?> extractText({
+    required String fileBase64,
+    required String mimeType,
+  }) async {
+    if (!mimeType.startsWith('image/')) return null;
+
     File? tempFile;
     try {
       final bytes = base64Decode(fileBase64);
@@ -133,33 +167,11 @@ class DocumentValidationService {
         [tempFile.path, 'stdout'],
       ).timeout(const Duration(seconds: 20));
 
-      if (result.exitCode != 0) {
-        // tesseract present but failed — fail open.
-        return _failOpen('Could not verify automatically; accepted.');
-      }
-
-      final text = (result.stdout as String).toLowerCase();
-      if (text.trim().isEmpty) {
-        // Text was readable to OCR but empty — no hint → treat as invalid.
-        return {
-          'valid': false,
-          'reason': 'Could not read any text from this ${spec.label}.',
-        };
-      }
-
-      if (_hasKeywordHint(text, spec.keywords)) {
-        return {'valid': true, 'reason': 'Content matches ${spec.label}.'};
-      }
-      return {
-        'valid': false,
-        'reason': 'This document does not look like a ${spec.label}.',
-      };
-    } on ProcessException {
-      // tesseract not installed — fail open.
-      return _failOpen('OCR is not available; accepted.');
+      if (result.exitCode != 0) return null;
+      return result.stdout as String;
     } catch (_) {
-      // Timeout, decode error, etc. — fail open.
-      return _failOpen('Could not verify automatically; accepted.');
+      // ProcessException (not installed), timeout, decode error, etc.
+      return null;
     } finally {
       if (tempFile != null) {
         try {
