@@ -656,6 +656,12 @@ paths:
     post:
       tags: [Chats]
       summary: Send a message
+      description: >
+        Moderation (TICKET-19): before the message is stored, phone numbers
+        (10–15 digit runs) and abusive words in English or Roman Urdu/Hindi
+        are masked with `*` (e.g. `kutta` → `k****`). Applies to `text` and
+        `session_request` messages; `call_invite` (Jitsi room name) is not
+        modified. The stored/returned message contains the masked text.
       security:
         - BearerAuth: []
       parameters:
@@ -756,6 +762,14 @@ paths:
         JWT) and injects the current date/time + country so general questions
         like the current time are answerable. The Gemini API key stays
         server-side.
+
+        Moderation (TICKET-19): phone numbers and abusive words (English +
+        Roman Urdu/Hindi) are masked with `*` in the user's message and
+        history before they reach the model, and in the model's reply before
+        it is returned. The masked copy of the user's message is returned as
+        `sanitizedMessage` so clients can blur the sender's own bubble. The
+        system prompt additionally forbids the assistant from using abusive
+        language or sharing phone numbers.
       security:
         - BearerAuth: []
       requestBody:
@@ -789,6 +803,13 @@ paths:
                 properties:
                   reply:
                     type: string
+                    description: Assistant reply (already moderated).
+                  sanitizedMessage:
+                    type: string
+                    description: >
+                      The user's message with phone numbers and abusive words
+                      masked — what clients should display in the sender's
+                      bubble.
         '400':
           description: Missing message
           content:

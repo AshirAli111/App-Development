@@ -1,8 +1,17 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+/// The assistant's reply plus the moderated ("blurred") copy of the message
+/// the user sent — phone numbers and abusive words come back masked with `*`
+/// so the UI can show the censored version in the sender's own bubble.
+class AiChatResult {
+  final String reply;
+  final String sanitizedMessage;
+  const AiChatResult({required this.reply, required this.sanitizedMessage});
+}
+
 /// Talks to the backend AI assistant (`POST /api/ai/chat`), which proxies to
-/// Llama via OpenRouter. The API key lives on the backend, never in the app.
+/// Gemini. The API key lives on the backend, never in the app.
 class AiAssistantService {
   final String baseUrl;
   final String token;
@@ -10,7 +19,7 @@ class AiAssistantService {
   AiAssistantService({required this.baseUrl, required this.token});
 
   /// [history] is prior turns as `{'role': 'user'|'assistant', 'content': ...}`.
-  Future<String> sendMessage({
+  Future<AiChatResult> sendMessage({
     required String message,
     List<Map<String, String>> history = const [],
   }) async {
@@ -25,7 +34,10 @@ class AiAssistantService {
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     if (response.statusCode == 200) {
-      return data['reply'] as String;
+      return AiChatResult(
+        reply: data['reply'] as String,
+        sanitizedMessage: data['sanitizedMessage'] as String? ?? message,
+      );
     }
     throw Exception(data['error'] ?? 'The assistant is unavailable right now.');
   }

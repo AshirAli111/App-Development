@@ -1,10 +1,12 @@
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../services/chat_service.dart';
+import '../services/content_moderation_service.dart';
 import '../utils/response.dart';
 
 class ChatRoutes {
   final _chatService = ChatService();
+  final _moderation = ContentModerationService();
 
   Router get router {
     final router = Router();
@@ -70,10 +72,18 @@ class ChatRoutes {
       if (userId == null) return errorResponse('Unauthorized', statusCode: 401);
 
       final body = await parseBody(request);
-      final text = body['text'] as String?;
+      var text = body['text'] as String?;
 
       if (text == null || text.isEmpty) {
         return errorResponse('text is required');
+      }
+
+      // Mask phone numbers and abusive words before the message is stored —
+      // `call_invite` carries a Jitsi room name, not user text, so it is
+      // left untouched (TICKET-19).
+      final type = body['type'] as String? ?? 'text';
+      if (type != 'call_invite') {
+        text = _moderation.sanitize(text);
       }
 
       final message = await _chatService.sendMessage(

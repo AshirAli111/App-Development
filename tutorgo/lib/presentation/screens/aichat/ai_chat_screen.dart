@@ -130,6 +130,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       _isTyping = true;
       _controller.clear();
     });
+    final sentIndex = _messages.length - 1;
     _persist();
 
     _scrollToBottom();
@@ -139,8 +140,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
         AiAssistantService(baseUrl: auth.baseUrl, token: auth.accessToken);
 
     String aiReply;
+    String sentText = text;
     try {
-      aiReply = await service.sendMessage(message: text, history: history);
+      final result =
+          await service.sendMessage(message: text, history: history);
+      aiReply = result.reply;
+      // The backend masks phone numbers and abusive words (TICKET-19) —
+      // show the blurred version in the sender's own bubble too.
+      sentText = result.sanitizedMessage;
     } catch (e) {
       aiReply =
           "Sorry, I couldn't reach the assistant just now. Please try again in a moment.";
@@ -148,6 +155,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     if (!mounted) return;
     setState(() {
+      _messages[sentIndex] = _AiMessage(text: sentText, isUser: true);
       _messages.add(_AiMessage(text: aiReply, isUser: false));
       _isTyping = false;
     });

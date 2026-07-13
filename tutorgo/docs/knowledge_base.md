@@ -432,6 +432,40 @@ admin inspecting MongoDB can verify a tutor without decoding base64 images.
 - `DocumentValidationService.extractText()` is the shared tesseract runner
   used by both the verify endpoint and this service.
 
+### Chat Moderation — Abuse & Phone-Number Masking (TICKET-19)
+
+Both chat surfaces (student↔tutor chat and the AI assistant chat) mask
+("blur") disallowed content server-side in
+`backend/lib/services/content_moderation_service.dart`:
+
+- **Phone numbers** — 10–15 digit runs incl. `+ - ( ) .`/space separators
+  (`03001234567`, `+92 300 1234567`, …) are fully replaced with `*`. Prices
+  and short numbers are untouched.
+- **Abusive words** — case-insensitive word-boundary lexicon of English and
+  Roman Urdu/Hindi insults (beghairat, kutta, pagal, kamina, harami,
+  bewakoof, chutiya, …) masked keeping the first letter: `kutta` → `k****`.
+
+Applied at every write/reply point so a modified client cannot bypass it:
+
+| Point | File | What is sanitized |
+|---|---|---|
+| `POST /api/chats/<id>/messages` | `chat_routes.dart` | message text before storing (`text` + `session_request`; `call_invite` room names untouched) |
+| `POST /api/ai/chat` | `ai_routes.dart` | user message + history **before Gemini**, and the reply before returning; also returns `sanitizedMessage` |
+| `POST /api/ai/conversations`, `.../message` | `ai_routes.dart` | persisted AI-chat transcripts |
+
+The AI system prompt (`ai_assistant_service.dart`, guardrail #9) also forbids
+the assistant from using abusive words in any language (incl. Roman
+Urdu/Hindi) or asking for/repeating phone numbers, and tells it never to try
+to reconstruct masked (`*`) content.
+
+**Frontend:** the student/tutor chat screens re-fetch messages after sending,
+so they display the masked text automatically. The AI chat screen
+(`ai_chat_screen.dart`) replaces the sender's local bubble with
+`sanitizedMessage` from the response (`AiChatResult` in
+`lib/data/services/ai_assistant_service.dart`).
+
+Unit tests: `backend/test/content_moderation_test.dart`.
+
 ---
 
 ## 7. Data Models

@@ -2,6 +2,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 import '../services/ai_assistant_service.dart';
 import '../services/ai_conversation_service.dart';
+import '../services/content_moderation_service.dart';
 import '../services/session_service.dart';
 import '../services/user_service.dart';
 import '../utils/response.dart';
@@ -11,6 +12,7 @@ class AiRoutes {
   final _assistant = AiAssistantService();
   final _userService = UserService();
   final _sessionService = SessionService();
+  final _moderation = ContentModerationService();
 
   Router get router {
     final router = Router();
@@ -38,9 +40,20 @@ class AiRoutes {
         return errorResponse('message is required');
       }
 
+      // Moderation (TICKET-19): mask phone numbers and abusive words in the
+      // user's message and history BEFORE they reach the model, and in the
+      // model's reply before it reaches the client. `sanitizedMessage` is
+      // returned so the app can blur the sender's own chat bubble too.
+      final sanitizedMessage = _moderation.sanitize(message);
+
       final history = (body['history'] as List?)
               ?.whereType<Map>()
               .map((m) => Map<String, dynamic>.from(m))
+              .map((m) => {
+                    ...m,
+                    if (m['content'] is String)
+                      'content': _moderation.sanitize(m['content'] as String),
+                  })
               .toList() ??
           const <Map<String, dynamic>>[];
 
@@ -49,12 +62,15 @@ class AiRoutes {
 
       final reply = await _assistant.reply(
         role: role,
-        message: message,
+        message: sanitizedMessage,
         history: history,
         userContext: userContext,
       );
 
-      return jsonResponse({'reply': reply});
+      return jsonResponse({
+        'reply': _moderation.sanitize(reply),
+        'sanitizedMessage': sanitizedMessage,
+      });
     } on Exception catch (e) {
       return errorResponse(
         e.toString().replaceFirst('Exception: ', ''),
@@ -178,7 +194,7 @@ class AiRoutes {
       final conversation = await _aiService.createConversation(
         userId: userId,
         role: role,
-        firstMessage: message,
+        firstMessage: _moderation.sanitize(message),
       );
 
       return jsonResponse(conversation, statusCode: 201);
@@ -207,7 +223,7 @@ class AiRoutes {
 
       final updated = await _aiService.addMessage(
         conversationId: id,
-        text: text,
+        text: _moderation.sanitize(text),
         isUser: isUser,
       );
 
