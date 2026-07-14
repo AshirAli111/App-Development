@@ -984,6 +984,10 @@ Either hangs up → Jitsi fires conferenceTerminated
 - Onboarding: subtitle "…get best quality education anytime, anywhere."; the content is a
   centered `ConstrainedBox(maxWidth: 460)` with a smaller centered "Get Started" button so it
   lays out correctly on wide/desktop windows.
+- Onboarding hero: an auto-scrolling `PageView` carousel of five bundled student/tutor photos
+  (`assets/images/onboarding_1.png` … `onboarding_5.png`) with page-indicator dots, replacing
+  the old remote Giphy animation (no more network dependency on first launch). Implemented as a
+  `StatefulWidget` with a 3s auto-advance `Timer` (TICKET-20).
 
 ---
 
